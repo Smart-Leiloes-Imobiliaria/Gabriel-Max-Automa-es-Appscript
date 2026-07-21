@@ -1,0 +1,672 @@
+var WebhookDavi = WebhookDavi || {}
+
+function WebhookDaviFunctionReturn_(result, error, name) {
+  this.__webhookDaviFunctionReturn = true
+  this.name = String(name || '')
+  this.result = result
+  this.error = error || null
+}
+
+WebhookDaviFunctionReturn_.prototype.onError = function(callback) {
+  if (this.error && typeof callback === 'function') {
+    return callback(this.error) || this
+  }
+  return this
+}
+
+WebhookDaviFunctionReturn_.prototype.onSuccess = function(callback) {
+  if (!this.error && typeof callback === 'function') {
+    return callback(this.result) || this
+  }
+  return this
+}
+
+function $(func) {
+  return function() {
+    var funcName = func && func.name ? func.name : 'anonymous'
+    var args = Array.prototype.slice.call(arguments)
+    var result = null
+    var error = null
+
+    Logger.log('---------- Automacao ' + funcName + ' iniciada --------------')
+    try {
+      Logger.log('Arguments: ' + stringifyWebhookDaviForLog_(args, 1200))
+    } catch (_) {
+      Logger.log('Arguments: [nao serializavel]')
+    }
+
+    try {
+      result = func.apply(this, arguments)
+    } catch (err) {
+      error = err
+      Logger.log('---------- ERROR ' + funcName + ' --------------')
+      Logger.log(String(err && err.stack ? err.stack : err))
+    }
+
+    Logger.log('---------- Automacao ' + funcName + ' finalizada --------------')
+    return new WebhookDaviFunctionReturn_(result, error, funcName)
+  }
+}
+
+function stringifyWebhookDaviForLog_(value, maxLen) {
+  const limit = Math.max(120, Number(maxLen || 0) || 1200)
+  let text = ''
+  try {
+    text = JSON.stringify(value)
+  } catch (error) {
+    text = String(value || '')
+  }
+  return text.length > limit ? text.slice(0, limit) + '...' : text
+}
+
+WebhookDavi.Events = (function() {
+  var registry = []
+
+  function listify_(value) {
+    if (Array.isArray(value)) return value
+    if (value == null) return []
+    return [value]
+  }
+
+  function normalizeEventName_(value) {
+    return String(value || '').trim().toLowerCase()
+  }
+
+  function extractUpdatedDealFieldKeys_(eventNames) {
+    return listify_(eventNames).map(normalizeEventName_).map(function(eventName) {
+      var prefix = 'updated.deal.'
+      if (eventName.indexOf(prefix) !== 0) return ''
+      return eventName.slice(prefix.length)
+    }).filter(Boolean)
+  }
+
+  function uniqueStrings_(values) {
+    var seen = {}
+    var out = []
+    listify_(values).forEach(function(value) {
+      var text = String(value || '').trim()
+      if (!text || seen[text]) return
+      seen[text] = true
+      out.push(text)
+    })
+    return out
+  }
+
+  return {
+    reset: function() {
+      registry = []
+    },
+
+    setEvent: function(eventContext, eventNames, callback, options) {
+      var settings = options || {}
+      var names = uniqueStrings_(listify_(eventNames).map(normalizeEventName_))
+      var triggers = uniqueStrings_(settings.triggers || extractUpdatedDealFieldKeys_(names))
+      var outputs = uniqueStrings_(settings.outputs || [])
+      var name = String(settings.name || (callback && callback.name) || names.join('|') || 'webhook_event')
+
+      registry.push({
+        name: name,
+        events: names,
+        callback: callback,
+        triggers: triggers,
+        outputs: outputs,
+        eventOnly: settings.eventOnly === true,
+        context: eventContext || null
+      })
+    },
+
+    list: function() {
+      return registry.slice()
+    },
+
+    updatedDealField: function(fieldKey) {
+      return 'updated.deal.' + String(fieldKey || '').trim()
+    },
+
+    updatedDealFields: function(fieldKeys) {
+      return uniqueStrings_(fieldKeys).map(function(fieldKey) {
+        return 'updated.deal.' + fieldKey
+      })
+    }
+  }
+})()
+
+function handleWebhookDaviPost_(e) {
+  const now = new Date()
+  try {
+    if (typeof resetPipedriveCallStats_ === 'function') resetPipedriveCallStats_()
+
+    const raw = (e && e.postData && e.postData.contents) ? String(e.postData.contents) : ''
+    if (!raw) {
+      appendLog_({ timestamp: now, dealId: '', title: '', action: '', fn: 'webhook_received', altered: 'EMPTY', fields: '', patch: '', changedKeys: [] })
+      return jsonOut_({ ok: true, service: WEBHOOK_DAVI_SERVICE_NAME_, received: true, empty: true })
+    }
+
+    const events = parseWebhookDaviPayload_(raw)
+    appendWebhookDaviBatchStartLog_(now, events.length, raw.length)
+
+    WebhookDavi.Events.reset()
+    if (typeof registerWebhookDaviEvents_ === 'function') {
+      registerWebhookDaviEvents_(e)
+    }
+
+    const automations = WebhookDavi.Events.list()
+    const keyMap = buildWebhookDaviKeyMap_(automations)
+    const context = {
+      raw: raw,
+      automations: automations,
+      mappedSet: keyMap.mappedSet,
+      pureOutputSet: keyMap.pureOutputSet,
+      processed: 0,
+      skipped: 0,
+      results: []
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      if (processWebhookDaviActivityEvent_(events[i], context)) continue
+      processWebhookDaviEvent_(events[i], context)
+    }
+
+    const fetchStats = typeof getPipedriveCallStats_ === 'function' ? getPipedriveCallStats_() : null
+    appendWebhookDaviFetchStatsLog_(now, fetchStats)
+
+    return jsonOut_({
+      ok: true,
+      service: WEBHOOK_DAVI_SERVICE_NAME_,
+      processed: context.processed,
+      skipped: context.skipped,
+      results: context.results,
+      fetchStats: fetchStats
+    })
+  } catch (error) {
+    logError(e, error, 'handleWebhookDaviPost_')
+    return jsonOut_({ ok: false, service: WEBHOOK_DAVI_SERVICE_NAME_, error: String(error && error.message ? error.message : error) })
+  }
+}
+
+function processWebhookDaviActivityEvent_(ev, context) {
+  if (typeof notifExecShouldHandleActivityEvent_ !== 'function' ||
+      typeof notifExecHandleActivityWebhookEvent_ !== 'function') {
+    return false
+  }
+
+  const norm = normalizeWebhookEvent_(ev)
+  const entity = String(norm.entity || '').trim().toLowerCase()
+  if (entity !== 'activity' && entity !== 'activities') return false
+
+  const eventFingerprint = buildWebhookEventFingerprint_(ev)
+  if (eventFingerprint && webhookEventSeenRecently_(eventFingerprint)) {
+    context.results.push({
+      ok: true,
+      skipped: 'duplicate_activity_event',
+      activityId: norm.activityId || '',
+      fingerprint: eventFingerprint
+    })
+    context.skipped++
+    appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'duplicate_activity_event', {
+      fingerprint: eventFingerprint,
+      entity: norm.entity || ''
+    }, norm.changedKeysRaw || [])
+    return true
+  }
+  if (eventFingerprint) markWebhookEventSeen_(eventFingerprint)
+
+  if (!notifExecShouldHandleActivityEvent_(ev)) {
+    context.results.push({
+      ok: true,
+      skipped: 'activity_no_handler_match',
+      activityId: norm.activityId || '',
+      entity: norm.entity || ''
+    })
+    context.skipped++
+    appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'activity_no_handler_match', {
+      fingerprint: eventFingerprint,
+      entity: norm.entity || ''
+    }, norm.changedKeysRaw || [])
+    return true
+  }
+
+  const execution = $(notifExecHandleActivityWebhookEvent_)(ev)
+  const unwrapped = unwrapWebhookDaviFunctionReturn_(execution)
+  if (unwrapped.error) {
+    logError({ ev: ev, norm: norm }, unwrapped.error, 'notifExecHandleActivityWebhookEvent_')
+    context.results.push({
+      ok: false,
+      activityId: norm.activityId || '',
+      error: String(unwrapped.error && unwrapped.error.message ? unwrapped.error.message : unwrapped.error)
+    })
+    context.processed++
+    return true
+  }
+
+  context.results.push({
+    ok: true,
+    activityId: norm.activityId || '',
+    ran: ['notifExecHandleActivityWebhookEvent_'],
+    result: unwrapped.result
+  })
+  context.processed++
+  appendWebhookDecisionLog_(new Date(), norm, 'PROCESSED', 'activity_handler=notifExecHandleActivityWebhookEvent_', {
+    fingerprint: eventFingerprint,
+    result: unwrapped.result
+  }, norm.changedKeysRaw || [])
+  return true
+}
+
+function parseWebhookDaviPayload_(raw) {
+  let payload
+  try {
+    payload = JSON.parse(raw)
+  } catch (_) {
+    payload = { _invalid_json: true, raw: String(raw || '').slice(0, RAW_LOG_TRUNCATE_) }
+  }
+  return Array.isArray(payload) ? payload : [payload]
+}
+
+function appendWebhookDaviBatchStartLog_(timestamp, eventCount, rawLength) {
+  if (!shouldLogWebhookDiagnosticEntries_()) return
+
+  appendLog_({
+    timestamp: timestamp,
+    dealId: '',
+    title: '',
+    action: 'webhook_batch_start',
+    fn: 'handleWebhookDaviPost_',
+    altered: 'START',
+    fields: 'events=' + String(eventCount) + ' | raw_length=' + String(rawLength),
+    patch: {
+      events: eventCount,
+      rawLength: rawLength,
+      webhookUrl: safeWebhookUrl_()
+    },
+    changedKeys: []
+  })
+}
+
+function appendWebhookDaviFetchStatsLog_(timestamp, fetchStats) {
+  if (!fetchStats || !shouldLogWebhookDiagnosticEntries_()) return
+
+  appendLog_({
+    timestamp: timestamp || new Date(),
+    dealId: '',
+    title: '',
+    action: 'webhook_fetch_stats',
+    fn: 'handleWebhookDaviPost_',
+    altered: 'INFO',
+    fields:
+      'totalCalls=' + String(fetchStats.totalCalls || 0) +
+      ' | retries=' + String(fetchStats.totalRetries || 0) +
+      ' | errors=' + String(fetchStats.totalErrors || 0) +
+      ' | quotaDaily=' + String(fetchStats.totalQuotaDaily || 0) +
+      ' | quotaBurst=' + String(fetchStats.totalQuotaBurst || 0),
+    patch: fetchStats,
+    changedKeys: []
+  })
+}
+
+function buildWebhookDaviKeyMap_(automations) {
+  const mappedSet = new Set()
+  const globalTriggerSet = new Set()
+  const globalOutputSet = new Set()
+
+  ;(automations || []).forEach(function(automation) {
+    ;(automation.triggers || []).forEach(function(key) {
+      if (!key) return
+      const value = String(key)
+      mappedSet.add(value)
+      globalTriggerSet.add(value)
+    })
+
+    ;(automation.outputs || []).forEach(function(key) {
+      if (!key) return
+      const value = String(key)
+      mappedSet.add(value)
+      globalOutputSet.add(value)
+    })
+  })
+
+  const pureOutputSet = new Set()
+  globalOutputSet.forEach(function(key) {
+    if (!globalTriggerSet.has(key)) pureOutputSet.add(key)
+  })
+
+  return { mappedSet: mappedSet, pureOutputSet: pureOutputSet }
+}
+
+function processWebhookDaviEvent_(ev, context) {
+  const norm = normalizeWebhookEvent_(ev)
+  const dealId = norm.dealId
+  const fetchCallsBefore = typeof getPipedriveCallStats_ === 'function' ? Number((getPipedriveCallStats_() || {}).totalCalls || 0) : 0
+  const changedKeysRaw = Array.isArray(norm.changedKeysRaw) ? norm.changedKeysRaw : []
+  const changedKeys = changedKeysRaw.filter(function(key) {
+    return context.mappedSet.has(String(key))
+  })
+  const eventFingerprint = buildWebhookEventFingerprint_(ev)
+
+  if (skipWebhookDaviEventBeforeFetch_(norm, changedKeysRaw, changedKeys, eventFingerprint, context)) return
+
+  appendWebhookDaviRawPayloadLog_(context.raw, norm, dealId, changedKeys)
+
+  const plan = buildWebhookDaviExecutionPlan_(norm, changedKeysRaw, changedKeys, context)
+  if (!plan.runnable.length) {
+    context.skipped++
+    context.results.push({
+      ok: true,
+      dealId: dealId,
+      action: norm.action || '',
+      changedKeys: changedKeys,
+      ran: [],
+      handlerResults: plan.handlerResults
+    })
+    appendWebhookDaviDecisionForNoHandlers_(norm, eventFingerprint, changedKeysRaw, changedKeys, plan.handlerResults)
+    return
+  }
+
+  let deal = callPipedrive('deals/' + dealId, 'GET', null)
+  if (!deal) {
+    context.results.push({ ok: true, skipped: 'deal_not_found', dealId: dealId })
+    context.skipped++
+    appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'deal_not_found', { fingerprint: eventFingerprint }, changedKeys)
+    return
+  }
+
+  const ran = []
+  const handlerResults = plan.handlerResults.slice(0)
+
+  for (var i = 0; i < plan.runnable.length; i++) {
+    const item = plan.runnable[i]
+    const execution = runWebhookDaviAutomation_(item, deal, changedKeys, norm, ev)
+
+    if (execution.error) {
+      logError({ ev: ev, norm: norm }, execution.error, item.name)
+      handlerResults.push({ fn: item.name, error: String(execution.error && execution.error.message ? execution.error.message : execution.error) })
+      continue
+    }
+
+    const result = execution.result
+    if (result && typeof result === 'object' && result.refetchDeal === true) {
+      if (result.patch && typeof result.patch === 'object') {
+        deal = applyPatchedFieldsToDeal_(deal, result.patch)
+      } else {
+        deal = callPipedrive('deals/' + dealId, 'GET', null)
+      }
+    }
+
+    ran.push(item.name)
+    handlerResults.push({ fn: item.name, result: result })
+  }
+
+  const didAnything = ran.length > 0
+  if (didAnything) context.processed++
+  else context.skipped++
+
+  const fetchCallsAfter = typeof getPipedriveCallStats_ === 'function' ? Number((getPipedriveCallStats_() || {}).totalCalls || 0) : fetchCallsBefore
+  const skipReasons = summarizeWebhookDaviSkipReasons_(handlerResults)
+
+  context.results.push({
+    ok: true,
+    dealId: dealId,
+    action: norm.action || '',
+    changedKeys: changedKeys,
+    ran: ran,
+    handlerResults: handlerResults
+  })
+
+  appendWebhookDecisionLog_(new Date(), norm, didAnything ? 'PROCESSED' : 'SKIP', didAnything ? ('handlers=' + ran.join(', ')) : ('skip=' + (skipReasons.join(', ') || 'no_handler_effect')), {
+    entity: norm.entity || '',
+    fingerprint: eventFingerprint,
+    changedKeysRaw: changedKeysRaw,
+    changedKeysMapped: changedKeys,
+    ran: ran,
+    fetchCallsDelta: Math.max(0, fetchCallsAfter - fetchCallsBefore),
+    handlerResults: handlerResults
+  }, changedKeys)
+}
+
+function skipWebhookDaviEventBeforeFetch_(norm, changedKeysRaw, changedKeys, eventFingerprint, context) {
+  const dealId = norm.dealId
+
+  if (eventFingerprint && webhookEventSeenRecently_(eventFingerprint)) {
+    context.results.push({ ok: true, skipped: 'duplicate_event', dealId: dealId, fingerprint: eventFingerprint })
+    context.skipped++
+    appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'duplicate_event', {
+      fingerprint: eventFingerprint,
+      entity: norm.entity || '',
+      changedKeysRawCount: changedKeysRaw.length
+    }, changedKeys)
+    return true
+  }
+  if (eventFingerprint) markWebhookEventSeen_(eventFingerprint)
+
+  if (!dealId) {
+    context.results.push({ ok: true, skipped: 'no_deal_id' })
+    context.skipped++
+    appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'no_deal_id', {
+      entity: norm.entity || '',
+      changedKeysRawCount: changedKeysRaw.length,
+      fingerprint: eventFingerprint
+    }, changedKeys)
+    return true
+  }
+
+  if (Array.isArray(TEST_DEAL_IDS_) && TEST_DEAL_IDS_.length > 0 && !TEST_DEAL_IDS_.includes(String(dealId))) {
+    context.results.push({ ok: true, skipped: 'test_mode_block', dealId: dealId })
+    context.skipped++
+    appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'test_mode_block', { fingerprint: eventFingerprint }, changedKeys)
+    return true
+  }
+
+  const ent = String(norm.entity || '')
+  if (ent !== 'deal' && ent !== 'deals') {
+    context.results.push({ ok: true, skipped: 'not_deal', dealId: dealId, entity: norm.entity })
+    context.skipped++
+    appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'not_deal', { entity: norm.entity, fingerprint: eventFingerprint }, changedKeys)
+    return true
+  }
+
+  if (isWebhookDaviDeleteAction_(norm.action)) {
+    context.results.push({ ok: true, skipped: 'delete', dealId: dealId })
+    context.skipped++
+    appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'delete', { fingerprint: eventFingerprint }, changedKeys)
+    return true
+  }
+
+  if (changedKeysRaw.length > 0 && changedKeys.length === 0) {
+    context.results.push({ ok: true, skipped: 'no_relevant_changed_keys', dealId: dealId, changedKeysRaw: changedKeysRaw })
+    context.skipped++
+    appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'no_relevant_changed_keys', {
+      fingerprint: eventFingerprint,
+      changedKeysRaw: changedKeysRaw
+    }, changedKeys)
+    return true
+  }
+
+  const eventLooksLikePureOutputLoop =
+    changedKeys.length > 0 &&
+    changedKeys.every(function(key) { return context.pureOutputSet.has(String(key)) })
+
+  if (eventLooksLikePureOutputLoop && patchedRecently_(dealId, 45)) {
+    context.results.push({ ok: true, skipped: 'loop_guard_event', dealId: dealId, changedKeys: changedKeys })
+    context.skipped++
+    appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'loop_guard_event', {
+      fingerprint: eventFingerprint,
+      changedKeys: changedKeys
+    }, changedKeys)
+    return true
+  }
+
+  return false
+}
+
+function appendWebhookDaviRawPayloadLog_(raw, norm, dealId, changedKeys) {
+  if (!shouldLogRawWebhookPayload_()) return
+
+  appendLog_({
+    timestamp: new Date(),
+    dealId: dealId || '',
+    title: norm.title || '',
+    action: norm.action || '',
+    fn: 'webhook_received',
+    altered: 'RAW',
+    fields: norm.entity ? (norm.entity + (dealId ? ':' + dealId : '')) : '',
+    patch: String(raw || '').slice(0, RAW_LOG_TRUNCATE_),
+    changedKeys: changedKeys
+  })
+}
+
+function buildWebhookDaviExecutionPlan_(norm, changedKeysRaw, changedKeys, context) {
+  const eventNames = buildWebhookDaviEventNames_(norm)
+  const runnable = []
+  const handlerResults = []
+
+  ;(context.automations || []).forEach(function(automation) {
+    const outputsSet = new Set(automation.outputs || [])
+    const triggersSet = new Set(automation.triggers || [])
+    const hasTriggerChange = changedKeys.some(function(key) { return triggersSet.has(key) })
+    const onlyOutputsChanged = changedKeys.length > 0 && changedKeys.every(function(key) { return outputsSet.has(key) })
+    const matchesRegisteredEvent = webhookDaviAutomationMatchesEvent_(automation, eventNames)
+
+    if (onlyOutputsChanged && patchedRecently_(norm.dealId, 45)) {
+      handlerResults.push({ fn: automation.name, skipped: 'loop_guard', changedKeys: changedKeys })
+      return
+    }
+
+    if (automation.eventOnly === true && !matchesRegisteredEvent) {
+      handlerResults.push({ fn: automation.name, skipped: 'event_only_no_match', changedKeys: changedKeys })
+      return
+    }
+
+    const shouldRun =
+      isWebhookDaviCreateAction_(norm.action) ||
+      changedKeysRaw.length === 0 ||
+      hasTriggerChange ||
+      matchesRegisteredEvent
+
+    if (!shouldRun) {
+      handlerResults.push({ fn: automation.name, skipped: 'no_trigger_match', changedKeys: changedKeys })
+      return
+    }
+
+    runnable.push({
+      name: automation.name,
+      automation: automation,
+      onlyFields: onlyOutputsChanged ? changedKeys.slice(0) : null
+    })
+  })
+
+  return { runnable: runnable, handlerResults: handlerResults }
+}
+
+function runWebhookDaviAutomation_(item, deal, changedKeys, norm, rawEvent) {
+  const automation = item.automation || {}
+  const options = {
+    force: true,
+    onlyFields: item.onlyFields,
+    webhookEvent: norm,
+    rawWebhookEvent: rawEvent
+  }
+  const data = {
+    deal: deal,
+    current: deal,
+    changedKeys: changedKeys,
+    options: options,
+    webhookEvent: norm,
+    rawWebhookEvent: rawEvent
+  }
+  const validate = {
+    status: true,
+    changes: changedKeys && changedKeys.length ? changedKeys[0] : '',
+    changedKeys: changedKeys,
+    onlyFields: item.onlyFields,
+    eventNames: buildWebhookDaviEventNames_(norm)
+  }
+
+  try {
+    const value = automation.callback(data, validate)
+    return unwrapWebhookDaviFunctionReturn_(value)
+  } catch (error) {
+    return { result: null, error: error }
+  }
+}
+
+function unwrapWebhookDaviFunctionReturn_(value) {
+  if (value && value.__webhookDaviFunctionReturn) {
+    return { result: value.result, error: value.error || null }
+  }
+  return { result: value, error: null }
+}
+
+function appendWebhookDaviDecisionForNoHandlers_(norm, fingerprint, changedKeysRaw, changedKeys, handlerResults) {
+  const noFetchSkipReasons = summarizeWebhookDaviSkipReasons_(handlerResults)
+  appendWebhookDecisionLog_(new Date(), norm, 'SKIP', 'skip=' + (noFetchSkipReasons.join(', ') || 'no_handler_effect'), {
+    entity: norm.entity || '',
+    fingerprint: fingerprint,
+    changedKeysRaw: changedKeysRaw,
+    changedKeysMapped: changedKeys,
+    ran: [],
+    fetchCallsDelta: 0,
+    handlerResults: handlerResults
+  }, changedKeys)
+}
+
+function summarizeWebhookDaviSkipReasons_(handlerResults) {
+  return (handlerResults || [])
+    .filter(function(item) { return item && item.skipped })
+    .map(function(item) { return String(item.fn || '') + ':' + String(item.skipped || '') })
+    .slice(0, 6)
+}
+
+function buildWebhookDaviEventNames_(norm) {
+  const actions = normalizeWebhookDaviActionAliases_(norm && norm.action)
+  const entities = normalizeWebhookDaviEntityAliases_(norm && norm.entity)
+  const changedKeys = Array.isArray(norm && norm.changedKeysRaw) ? norm.changedKeysRaw : []
+  const names = []
+
+  actions.forEach(function(action) {
+    entities.forEach(function(entity) {
+      const base = action + '.' + entity
+      names.push(base)
+      if (action === 'updated') {
+        changedKeys.forEach(function(key) {
+          if (key) names.push(base + '.' + String(key))
+        })
+      }
+    })
+  })
+
+  return Array.from(new Set(names.map(function(name) { return String(name || '').toLowerCase() })))
+}
+
+function normalizeWebhookDaviActionAliases_(action) {
+  const value = String(action || '').trim().toLowerCase()
+  const aliases = []
+  if (value) aliases.push(value)
+  if (value === 'create' || value === 'add' || value === 'added') aliases.push('added')
+  if (value === 'update' || value === 'updated' || value === 'change' || value === 'changed') aliases.push('updated')
+  if (value === 'delete' || value === 'deleted' || value === 'remove') aliases.push('deleted')
+  return Array.from(new Set(aliases.filter(Boolean)))
+}
+
+function normalizeWebhookDaviEntityAliases_(entity) {
+  const value = String(entity || '').trim().toLowerCase()
+  if (value === 'deals') return ['deals', 'deal']
+  if (value === 'deal') return ['deal', 'deals']
+  return value ? [value] : []
+}
+
+function isWebhookDaviCreateAction_(action) {
+  const aliases = normalizeWebhookDaviActionAliases_(action)
+  return aliases.indexOf('added') >= 0 || aliases.indexOf('create') >= 0
+}
+
+function isWebhookDaviDeleteAction_(action) {
+  const aliases = normalizeWebhookDaviActionAliases_(action)
+  return aliases.indexOf('deleted') >= 0 || aliases.indexOf('delete') >= 0
+}
+
+function webhookDaviAutomationMatchesEvent_(automation, eventNames) {
+  const eventSet = new Set(eventNames || [])
+  return (automation.events || []).some(function(eventName) {
+    return eventSet.has(String(eventName || '').toLowerCase())
+  })
+}

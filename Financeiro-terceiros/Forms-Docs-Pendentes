@@ -1,0 +1,1235 @@
+const FORMS_DOCS_PENDENTES_TIMEZONE_FALLBACK_ = 'America/Belem'
+const FORMS_DOCS_PENDENTES_DRIVE_FIELD_KEY_ = '650926168d68c7133f9d9fc0c0af0185e39a60f3'
+const FORMS_DOCS_PENDENTES_DRIVE_FIELD_NAME_ = 'Link da pasta no Google Drive'
+const FORMS_DOCS_PENDENTES_ACTIVITY_TYPE_KEY_ = 'leiloes_negativos'
+const FORMS_DOCS_PENDENTES_ACTIVITY_SUBJECT_PREFIX_ = 'Verificar Arquivo'
+const FORMS_DOCS_PENDENTES_ACTIVITY_PRIORITY_FIELD_KEY_ = 'priority'
+const FORMS_DOCS_PENDENTES_ACTIVITY_OWNER_ID_ = 25418043
+const FORMS_DOCS_PENDENTES_FORM_ID_ = '18XLlZSgsJDW2X7oR77-c62bC0eSSgZyYT2GvO_Uyn1w'
+const FORMS_DOCS_PENDENTES_FALLBACK_FOLDER_ID_ = '1kNt_2v730gB07epJl3QBj6dEyKed6Epi'
+const PENDENCIA_PARCEIRO_PRIORITY_OPTION_ID = 26
+const FORMS_DOCS_PENDENTES_LOCK_WAIT_MS_ = 30000
+const FORMS_DOCS_PENDENTES_STATE_PREFIX_ = 'forms_docs_pendentes'
+const FORMS_DOCS_PENDENTES_UPLOAD_STEP_ = 'upload'
+const FORMS_DOCS_PENDENTES_ACTIVITY_STEP_ = 'activity'
+
+const FORMS_DOCS_PENDENTES_DESTINATIONS_ = {
+  ESCRITURA_CCV: {
+    key: 'ESCRITURA_CCV',
+    path: ['2. Escritura - Financiamento - CCV']
+  },
+  DEBITOS_ITBI: {
+    key: 'DEBITOS_ITBI',
+    path: ['3. Débitos do Imóvel', 'ITBI (1)']
+  },
+  DEBITOS_TROCA_TITULARIDADE: {
+    key: 'DEBITOS_TROCA_TITULARIDADE',
+    path: ['3. Débitos do Imóvel', 'TROCA DE TITULARIDADE']
+  },
+  REGISTRO_AVERBACOES: {
+    key: 'REGISTRO_AVERBACOES',
+    path: ['4. Registro', 'Averbações e/ou Certidões']
+  }
+}
+
+const FORMS_DOCS_PENDENTES_RULES_ = [
+  {
+    key: 'troca_titularidade',
+    destinationKey: 'DEBITOS_TROCA_TITULARIDADE',
+    explicitPriority: 1000,
+    phrases: ['troca de titularidade'],
+    wholeWord: false
+  },
+  {
+    key: 'guia_itbi',
+    destinationKey: 'DEBITOS_ITBI',
+    explicitPriority: 100,
+    phrases: ['guia de itbi'],
+    wholeWord: false
+  },
+  {
+    key: 'guia_itiv',
+    destinationKey: 'DEBITOS_ITBI',
+    explicitPriority: 100,
+    phrases: ['guia de itiv'],
+    wholeWord: false
+  },
+  {
+    key: 'contrato_financiamento',
+    destinationKey: 'ESCRITURA_CCV',
+    explicitPriority: 90,
+    phrases: ['contrato de financiamento'],
+    wholeWord: false
+  },
+  {
+    key: 'escritura_publica',
+    destinationKey: 'ESCRITURA_CCV',
+    explicitPriority: 90,
+    phrases: ['escritura publica'],
+    wholeWord: false
+  },
+  {
+    key: 'inteiro_teor',
+    destinationKey: 'REGISTRO_AVERBACOES',
+    explicitPriority: 85,
+    phrases: ['inteiro teor'],
+    wholeWord: false
+  },
+  {
+    key: 'escritura',
+    destinationKey: 'ESCRITURA_CCV',
+    explicitPriority: 80,
+    phrases: ['escritura'],
+    wholeWord: false
+  },
+  {
+    key: 'traslado',
+    destinationKey: 'ESCRITURA_CCV',
+    explicitPriority: 80,
+    phrases: ['traslado'],
+    wholeWord: false
+  },
+  {
+    key: 'contrato',
+    destinationKey: 'ESCRITURA_CCV',
+    explicitPriority: 70,
+    phrases: ['contrato'],
+    wholeWord: false
+  },
+  {
+    key: 'registro',
+    destinationKey: 'REGISTRO_AVERBACOES',
+    explicitPriority: 70,
+    phrases: ['registro'],
+    wholeWord: false
+  },
+  {
+    key: 'itbi',
+    destinationKey: 'DEBITOS_ITBI',
+    explicitPriority: 60,
+    phrases: ['itbi'],
+    wholeWord: true
+  },
+  {
+    key: 'itiv',
+    destinationKey: 'DEBITOS_ITBI',
+    explicitPriority: 60,
+    phrases: ['itiv'],
+    wholeWord: true
+  },
+  {
+    key: 'dam',
+    destinationKey: 'DEBITOS_ITBI',
+    explicitPriority: 60,
+    phrases: ['dam'],
+    wholeWord: true
+  },
+  {
+    key: 'ccv',
+    destinationKey: 'ESCRITURA_CCV',
+    explicitPriority: 60,
+    phrases: ['ccv'],
+    wholeWord: true
+  }
+]
+
+function onFormSubmitDocsPendentes(e) {
+  return formsDocsPendentesWithLock_(function() {
+    const parsed = formsDocsPendentesParseFormSubmission_(e)
+    const outcome = formsDocsPendentesProcessSubmission_(parsed)
+    formsDocsPendentesLog_('forms_docs_pendentes', 'onFormSubmitDocsPendentes', 'SIM', {
+      dealId: outcome.dealId,
+      title: outcome.documentTypeRaw,
+      fields: 'processamento concluido',
+      patch: outcome
+    })
+    return outcome
+  }, e)
+}
+
+function onFormSubmit(e) {
+  return onFormSubmitDocsPendentes(e)
+}
+
+function instalarGatilhoFormsDocsPendentes(formOrSpreadsheetId) {
+  const target = formsDocsPendentesResolveTriggerTarget_(formOrSpreadsheetId)
+
+  removerGatilhoFormsDocsPendentes()
+  const builder = ScriptApp.newTrigger('onFormSubmit')
+  const trigger = (target.type === 'form' ? builder.forForm(target.form) : builder.forSpreadsheet(target.spreadsheet))
+    .onFormSubmit()
+    .create()
+
+  return {
+    ok: true,
+    handler: 'onFormSubmit',
+    targetType: target.type,
+    targetId: target.id,
+    targetName: target.name,
+    triggerId: trigger && trigger.getUniqueId ? trigger.getUniqueId() : ''
+  }
+}
+
+function formsDocsPendentesResolveTriggerTarget_(formOrSpreadsheetId) {
+  const explicitId = String(formOrSpreadsheetId || '').trim()
+  const props = PropertiesService.getScriptProperties()
+  const candidateFormIds = [
+    explicitId,
+    props.getProperty('FORMS_DOCS_PENDENTES_FORM_ID'),
+    props.getProperty('FORM_ID'),
+    FORMS_DOCS_PENDENTES_FORM_ID_
+  ].map(function(value) {
+    return String(value || '').trim()
+  }).filter(Boolean)
+
+  for (let i = 0; i < candidateFormIds.length; i++) {
+    try {
+      const form = FormApp.openById(candidateFormIds[i])
+      return {
+        type: 'form',
+        id: form.getId(),
+        name: form.getTitle(),
+        form: form
+      }
+    } catch (error) {}
+  }
+
+  const spreadsheet = formsDocsPendentesResolveTriggerSpreadsheet_(explicitId)
+  return {
+    type: 'spreadsheet',
+    id: spreadsheet.getId(),
+    name: spreadsheet.getName(),
+    spreadsheet: spreadsheet
+  }
+}
+
+function formsDocsPendentesResolveTriggerSpreadsheet_(spreadsheetId) {
+  const explicitId = String(spreadsheetId || '').trim()
+  if (explicitId) return SpreadsheetApp.openById(explicitId)
+
+  const active = SpreadsheetApp.getActiveSpreadsheet()
+  if (active) return active
+
+  const props = PropertiesService.getScriptProperties()
+  const candidateIds = [
+    props.getProperty('FORM_RESPONSES_SPREADSHEET_ID'),
+    props.getProperty('SHEET_ID'),
+    props.getProperty('CONTAINER_SPREADSHEET_ID'),
+    props.getProperty('LOG_SPREADSHEET_ID')
+  ].map(function(value) {
+    return String(value || '').trim()
+  }).filter(Boolean)
+
+  for (let i = 0; i < candidateIds.length; i++) {
+    try {
+      return SpreadsheetApp.openById(candidateIds[i])
+    } catch (error) {}
+  }
+
+  throw new Error(
+    'Planilha de respostas do Forms nao encontrada. Rode instalarGatilhoFormsDocsPendentes("ID_DA_PLANILHA") ' +
+    'ou configure a Script Property FORM_RESPONSES_SPREADSHEET_ID.'
+  )
+}
+
+function removerGatilhoFormsDocsPendentes() {
+  let removed = 0
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction && trigger.getHandlerFunction() === 'onFormSubmit') {
+      ScriptApp.deleteTrigger(trigger)
+      removed++
+    }
+  })
+  return { ok: true, removed: removed, handler: 'onFormSubmit' }
+}
+
+function diagnosticarGatilhoFormsDocsPendentes() {
+  const triggers = ScriptApp.getProjectTriggers()
+    .filter(function(trigger) {
+      return trigger.getHandlerFunction && trigger.getHandlerFunction() === 'onFormSubmit'
+    })
+    .map(function(trigger) {
+      return {
+        handler: trigger.getHandlerFunction(),
+        eventType: trigger.getEventType ? String(trigger.getEventType()) : '',
+        sourceId: trigger.getTriggerSourceId ? String(trigger.getTriggerSourceId() || '') : '',
+        uniqueId: trigger.getUniqueId ? String(trigger.getUniqueId() || '') : ''
+      }
+    })
+
+  return {
+    ok: triggers.length === 1,
+    expectedHandler: 'onFormSubmit',
+    triggerCount: triggers.length,
+    triggers: triggers
+  }
+}
+
+function formsDocsPendentesTest_() {
+  const tests = [
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('Escritura')
+      formsDocsPendentesAssert_(resolved.destination.key === 'ESCRITURA_CCV', 'Escritura deve cair em ESCRITURA_CCV')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('Escritura Pública')
+      formsDocsPendentesAssert_(resolved.destination.key === 'ESCRITURA_CCV', 'Escritura Publica deve cair em ESCRITURA_CCV')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('Traslado')
+      formsDocsPendentesAssert_(resolved.destination.key === 'ESCRITURA_CCV', 'Traslado deve cair em ESCRITURA_CCV')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('CCV')
+      formsDocsPendentesAssert_(resolved.destination.key === 'ESCRITURA_CCV', 'CCV deve cair em ESCRITURA_CCV')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('Contrato de Financiamento')
+      formsDocsPendentesAssert_(resolved.destination.key === 'ESCRITURA_CCV', 'Contrato de Financiamento deve cair em ESCRITURA_CCV')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('Contrato')
+      formsDocsPendentesAssert_(resolved.destination.key === 'ESCRITURA_CCV', 'Contrato deve cair em ESCRITURA_CCV')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('Guia de ITBI')
+      formsDocsPendentesAssert_(resolved.destination.key === 'DEBITOS_ITBI', 'Guia de ITBI deve cair em DEBITOS_ITBI')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('ITBI')
+      formsDocsPendentesAssert_(resolved.destination.key === 'DEBITOS_ITBI', 'ITBI deve cair em DEBITOS_ITBI')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('Guia de ITIV')
+      formsDocsPendentesAssert_(resolved.destination.key === 'DEBITOS_ITBI', 'Guia de ITIV deve cair em DEBITOS_ITBI')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('ITIV')
+      formsDocsPendentesAssert_(resolved.destination.key === 'DEBITOS_ITBI', 'ITIV deve cair em DEBITOS_ITBI')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('DAM')
+      formsDocsPendentesAssert_(resolved.destination.key === 'DEBITOS_ITBI', 'DAM deve cair em DEBITOS_ITBI')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('Troca de Titularidade')
+      formsDocsPendentesAssert_(resolved.destination.key === 'DEBITOS_TROCA_TITULARIDADE', 'Troca de Titularidade deve cair em TROCA_DE_TITULARIDADE')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('Registro')
+      formsDocsPendentesAssert_(resolved.destination.key === 'REGISTRO_AVERBACOES', 'Registro deve cair em REGISTRO_AVERBACOES')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('Inteiro Teor')
+      formsDocsPendentesAssert_(resolved.destination.key === 'REGISTRO_AVERBACOES', 'Inteiro Teor deve cair em REGISTRO_AVERBACOES')
+    },
+    function() {
+      const resolved = formsDocsPendentesResolveDestination_('  guia   de ítbi ')
+      formsDocsPendentesAssert_(resolved.destination.key === 'DEBITOS_ITBI', 'Normalizacao de acento e espaco deve funcionar')
+    },
+    function() {
+      let failed = false
+      try {
+        formsDocsPendentesResolveDestination_('Documento desconhecido')
+      } catch (error) {
+        failed = String(error.message || error).indexOf('nao reconhecido') >= 0
+      }
+      formsDocsPendentesAssert_(failed, 'Tipo desconhecido deve falhar')
+    },
+    function() {
+      let failed = false
+      try {
+        formsDocsPendentesResolveDestination_('registro de contrato')
+      } catch (error) {
+        failed = String(error.message || error).indexOf('ambiguo') >= 0
+      }
+      formsDocsPendentesAssert_(failed, 'Tipo ambiguo deve falhar')
+    },
+    function() {
+      const dealId = formsDocsPendentesExtractDealId_('https://smartleiloes.pipedrive.com/deal/12345')
+      formsDocsPendentesAssert_(dealId === '12345', 'Extracao de dealId deve funcionar')
+    },
+    function() {
+      const folderId = formsDocsPendentesExtractDriveFolderId_('https://drive.google.com/drive/folders/abc123XYZ')
+      formsDocsPendentesAssert_(folderId === 'abc123XYZ', 'Extracao de folderId deve funcionar')
+    },
+    function() {
+      const start = new Date('2026-07-17T12:00:00Z')
+      const due = formsDocsPendentesAddBusinessDays_(start, 3)
+      formsDocsPendentesAssert_(formsDocsPendentesFormatDate_(due) === '2026-07-22', 'Tres dias uteis atravessando fim de semana deve resultar em 2026-07-22')
+    },
+    function() {
+      const refs = formsDocsPendentesExtractDriveFileRefs_('https://drive.google.com/file/d/AAA111bbb222ccc333ddd444/view https://drive.google.com/file/d/DDD444eee555fff666ggg777/view')
+      formsDocsPendentesAssert_(refs.length === 2, 'Deve suportar multiplos arquivos')
+    }
+  ]
+
+  const results = []
+  for (let i = 0; i < tests.length; i++) {
+    try {
+      tests[i]()
+      results.push({ index: i + 1, ok: true })
+    } catch (error) {
+      results.push({ index: i + 1, ok: false, message: String(error && error.message ? error.message : error) })
+    }
+  }
+
+  const failed = results.filter(function(item) { return !item.ok })
+  if (failed.length) {
+    throw new Error('formsDocsPendentesTest_ falhou: ' + JSON.stringify(failed))
+  }
+
+  return { ok: true, total: results.length, results: results }
+}
+
+function formsDocsPendentesProcessSubmission_(submission) {
+  const deal = formsDocsPendentesGetDealById_(submission.dealId)
+  const driveLink = formsDocsPendentesGetDealDriveLink_(deal)
+  const rootFolder = formsDocsPendentesResolveDriveFolderFromLink_(driveLink)
+  const destination = formsDocsPendentesResolveDestination_(submission.documentTypeRaw)
+  const destinationInfo = formsDocsPendentesResolveDestinationFolder_(rootFolder, destination.destination)
+  const destinationFolder = destinationInfo.folder
+  const uploadResults = formsDocsPendentesProcessUploadedFiles_(submission, destinationFolder, destination)
+  const activity = formsDocsPendentesEnsureVerificationActivity_(submission, destination, uploadResults, deal)
+
+  return {
+    ok: true,
+    responseId: submission.responseId,
+    propertyCode: submission.propertyCode,
+    dealId: submission.dealId,
+    documentTypeRaw: submission.documentTypeRaw,
+    documentTypeSource: submission.documentTypeSource,
+    destinationKey: destination.destination.key,
+    destinationPath: destination.destination.path.join(' / '),
+    rootFolderId: rootFolder.getId(),
+    rootFolderUrl: rootFolder.getUrl(),
+    destinationFallbackToRoot: !!destinationInfo.fallbackToRoot,
+    destinationExpectedPath: destinationInfo.expectedPath,
+    destinationFolderId: destinationFolder.getId(),
+    destinationFolderUrl: destinationFolder.getUrl(),
+    files: uploadResults,
+    activity: activity
+  }
+}
+
+function formsDocsPendentesParseFormSubmission_(e) {
+  if (!e) throw formsDocsPendentesError_('Evento do Forms invalido.', {})
+
+  if (e.response && typeof e.response.getItemResponses === 'function') {
+    const itemResponses = e.response.getItemResponses()
+    const headers = []
+    const row = []
+    itemResponses.forEach(function(itemResponse) {
+      const item = itemResponse.getItem ? itemResponse.getItem() : null
+      headers.push(item && item.getTitle ? item.getTitle() : '')
+      row.push(formsDocsPendentesNormalizeFormResponseAnswer_(itemResponse.getResponse()))
+    })
+    return formsDocsPendentesParseRow_(headers, row, {
+      responseId: formsDocsPendentesExtractResponseId_(e),
+      rowNumber: 0,
+      sheetName: '',
+      source: 'form_response'
+    })
+  }
+
+  if (e.range && e.range.getSheet && typeof e.range.getRow === 'function') {
+    const sheet = e.range.getSheet()
+    const rowNumber = Number(e.range.getRow() || 0)
+    if (rowNumber < 2) throw formsDocsPendentesError_('Evento do Forms invalido: linha de cabecalho.', { rowNumber: rowNumber })
+    const lastColumn = Math.max(sheet.getLastColumn(), e.range.getLastColumn ? e.range.getLastColumn() : 0)
+    const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0]
+    const row = sheet.getRange(rowNumber, 1, 1, lastColumn).getValues()[0]
+    return formsDocsPendentesParseRow_(headers, row, {
+      responseId: formsDocsPendentesExtractResponseId_(e),
+      rowNumber: rowNumber,
+      sheetName: sheet.getName()
+    })
+  }
+
+  if (e.namedValues && typeof e.namedValues === 'object') {
+    const headers = Object.keys(e.namedValues)
+    const row = headers.map(function(key) {
+      const value = e.namedValues[key]
+      return Array.isArray(value) ? value.join(', ') : value
+    })
+    return formsDocsPendentesParseRow_(headers, row, {
+      responseId: formsDocsPendentesExtractResponseId_(e),
+      rowNumber: 0,
+      sheetName: ''
+    })
+  }
+
+  throw formsDocsPendentesError_('Evento do Forms invalido: estrutura nao suportada.', {})
+}
+
+function formsDocsPendentesNormalizeFormResponseAnswer_(value) {
+  if (Array.isArray(value)) {
+    return value.map(function(item) {
+      return String(item || '').trim()
+    }).filter(Boolean).join(', ')
+  }
+  return String(value || '').trim()
+}
+
+function formsDocsPendentesParseRow_(headers, row, metadata) {
+  const uploadInfo = formsDocsPendentesDetectUploadColumn_(headers, row)
+  const propertyCode = formsDocsPendentesExtractPropertyCode_(headers, row)
+  const dealLink = formsDocsPendentesExtractDealLink_(headers, row)
+  const dealId = formsDocsPendentesExtractDealId_(dealLink)
+  const documentTypeInfo = formsDocsPendentesResolveDocumentTypeFromRow_(headers, row, uploadInfo.index)
+  const partnerName = formsDocsPendentesExtractPartnerName_(headers, row)
+  const reason = formsDocsPendentesExtractReason_(headers, row)
+  const fileIds = formsDocsPendentesExtractDriveFileRefs_(uploadInfo.value)
+
+  if (!fileIds.length) {
+    throw formsDocsPendentesError_('Arquivo nao encontrado na resposta do Forms.', {
+      propertyCode: propertyCode,
+      dealId: dealId,
+      responseId: metadata && metadata.responseId
+    })
+  }
+
+  return {
+    responseId: metadata && metadata.responseId || formsDocsPendentesBuildFallbackResponseId_(row),
+    rowNumber: metadata && metadata.rowNumber || 0,
+    sheetName: metadata && metadata.sheetName || '',
+    propertyCode: propertyCode,
+    dealLink: dealLink,
+    dealId: dealId,
+    uploadIndex: uploadInfo.index,
+    uploadRawValue: uploadInfo.value,
+    documentTypeRaw: documentTypeInfo.value,
+    documentTypeSource: documentTypeInfo.source,
+    partnerName: partnerName,
+    reason: reason,
+    fileIds: fileIds,
+    headers: headers,
+    row: row
+  }
+}
+
+function formsDocsPendentesExtractPropertyCode_(headers, row) {
+  const byHeader = formsDocsPendentesGetValueByHeaderAliases_(headers, row, [
+    'codigo do imovel',
+    'código do imóvel',
+    'numero do imovel',
+    'número do imóvel'
+  ])
+  const code = String(byHeader || '').trim()
+  return code
+}
+
+function formsDocsPendentesExtractDealLink_(headers, row) {
+  const byHeader = formsDocsPendentesGetValueByHeaderAliases_(headers, row, [
+    'link do imovel',
+    'link do negócio',
+    'link do negocio',
+    'link do pipedrive',
+    'negocio no pipedrive',
+    'imovel no pipedrive'
+  ])
+  if (!String(byHeader || '').trim()) {
+    throw formsDocsPendentesError_('Segunda resposta ausente: link do negocio no Pipedrive nao informado.', {})
+  }
+  return String(byHeader || '').trim()
+}
+
+function formsDocsPendentesExtractPartnerName_(headers, row) {
+  return formsDocsPendentesGetValueByHeaderAliases_(headers, row, [
+    'parceiro responsavel',
+    'parceiro responsável',
+    'parceiro selecionado',
+    'nome do parceiro',
+    'parceiro'
+  ])
+}
+
+function formsDocsPendentesExtractReason_(headers, row) {
+  return formsDocsPendentesGetValueByHeaderAliases_(headers, row, [
+    'motivo',
+    'qual o motivo',
+    'informe o motivo'
+  ])
+}
+
+function formsDocsPendentesDetectUploadColumn_(headers, row) {
+  for (let i = row.length - 1; i >= 0; i--) {
+    const value = String(row[i] || '').trim()
+    if (!value) continue
+    if (formsDocsPendentesLooksLikeDriveUploadValue_(value)) {
+      return { index: i, value: value, header: String(headers[i] || '').trim() }
+    }
+  }
+  throw formsDocsPendentesError_('Arquivo nao encontrado na resposta do Forms.', {})
+}
+
+function formsDocsPendentesResolveDocumentTypeFromRow_(headers, row, uploadIndex) {
+  const candidates = []
+  const pushCandidate = function(value, source) {
+    const text = String(value || '').trim()
+    if (!text) return
+    if (formsDocsPendentesLooksLikeDriveUploadValue_(text)) return
+    const normalized = formsDocsPendentesNormalizeText_(text)
+    if (!normalized) return
+    if (candidates.some(function(item) { return item.normalized === normalized })) return
+    candidates.push({ value: text, normalized: normalized, source: source })
+  }
+
+  for (let offset = 1; offset <= 2; offset++) {
+    const index = uploadIndex - offset
+    if (index < 0) continue
+    pushCandidate(row[index], 'previous_answer_' + offset)
+  }
+
+  for (let i = 0; i < row.length; i++) {
+    if (i === uploadIndex || i === uploadIndex - 1 || i === uploadIndex - 2) continue
+    pushCandidate(row[i], 'row_answer_' + i)
+  }
+
+  for (let i = 0; i < candidates.length; i++) {
+    try {
+      formsDocsPendentesResolveDestination_(candidates[i].value)
+      return candidates[i]
+    } catch (error) {}
+  }
+
+  if (!candidates.length) {
+    throw formsDocsPendentesError_('Tipo de documento nao reconhecido: nenhuma pergunta candidata encontrada.', {})
+  }
+
+  throw formsDocsPendentesError_('Tipo de documento nao reconhecido: ' + candidates.map(function(item) { return item.value }).join(' | '), {
+    documentTypeCandidates: candidates.map(function(item) { return item.value })
+  })
+}
+
+function formsDocsPendentesResolveDestination_(documentType) {
+  const original = String(documentType || '').trim()
+  const normalized = formsDocsPendentesNormalizeText_(original)
+  const matches = []
+
+  FORMS_DOCS_PENDENTES_RULES_.forEach(function(rule) {
+    const matchedPhrases = rule.phrases.filter(function(phrase) {
+      return formsDocsPendentesTextMatchesRule_(normalized, phrase, rule.wholeWord)
+    })
+    if (!matchedPhrases.length) return
+    const longestPhrase = matchedPhrases.reduce(function(acc, current) {
+      return current.length > acc.length ? current : acc
+    }, '')
+    matches.push({
+      rule: rule,
+      longestPhraseLength: longestPhrase.length,
+      score: Number(rule.explicitPriority || 0) * 1000 + longestPhrase.length
+    })
+  })
+
+  if (!matches.length) {
+    throw formsDocsPendentesError_('Tipo de documento nao reconhecido: ' + original, {
+      documentType: original
+    })
+  }
+
+  const troca = matches.filter(function(item) { return item.rule.destinationKey === 'DEBITOS_TROCA_TITULARIDADE' })
+  const ranked = troca.length ? troca : matches
+  ranked.sort(function(a, b) { return b.score - a.score })
+
+  if (ranked.length > 1 && ranked[0].score === ranked[1].score && ranked[0].rule.destinationKey !== ranked[1].rule.destinationKey) {
+    throw formsDocsPendentesError_('Tipo de documento ambiguo: ' + original, {
+      documentType: original,
+      matches: ranked.map(function(item) { return item.rule.key })
+    })
+  }
+
+  if (!troca.length) {
+    const distinctDestinations = {}
+    matches.forEach(function(item) { distinctDestinations[item.rule.destinationKey] = true })
+    if (Object.keys(distinctDestinations).length > 1 && ranked[0].score - ranked[1].score < 10) {
+      throw formsDocsPendentesError_('Tipo de documento ambiguo: ' + original, {
+        documentType: original,
+        matches: matches.map(function(item) { return item.rule.key })
+      })
+    }
+  }
+
+  const selected = ranked[0]
+  return {
+    normalizedType: normalized,
+    ruleKey: selected.rule.key,
+    destination: FORMS_DOCS_PENDENTES_DESTINATIONS_[selected.rule.destinationKey]
+  }
+}
+
+function formsDocsPendentesTextMatchesRule_(normalizedText, phrase, wholeWord) {
+  const candidate = formsDocsPendentesNormalizeText_(phrase)
+  if (!candidate) return false
+  if (!wholeWord) return normalizedText.indexOf(candidate) >= 0
+  const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp('(^|\\s)' + escaped + '(\\s|$)').test(normalizedText)
+}
+
+function formsDocsPendentesGetDealById_(dealId) {
+  const client = formsDocsPendentesGetPipedriveClient_()
+  if (client) return client.getDeal(dealId)
+  if (typeof callPipedrive === 'function') return callPipedrive('deals/' + encodeURIComponent(String(dealId)), 'GET', null)
+  throw formsDocsPendentesError_('Cliente do Pipedrive nao disponivel.', { dealId: dealId })
+}
+
+function formsDocsPendentesGetPipedriveClient_() {
+  if (typeof SmartPipedrive !== 'undefined' && SmartPipedrive && typeof SmartPipedrive.fromProperties === 'function') {
+    return SmartPipedrive.fromProperties()
+  }
+  if (typeof SmartCaixaLibPipedrive !== 'undefined' && SmartCaixaLibPipedrive && typeof SmartCaixaLibPipedrive.fromProperties === 'function') {
+    return SmartCaixaLibPipedrive.fromProperties()
+  }
+  return null
+}
+
+function formsDocsPendentesGetDealDriveLink_(deal) {
+  const link = formsDocsPendentesGetDealFieldValue_(deal, FORMS_DOCS_PENDENTES_DRIVE_FIELD_KEY_) ||
+    formsDocsPendentesGetDealFieldValue_(deal, FORMS_DOCS_PENDENTES_DRIVE_FIELD_NAME_)
+  if (!String(link || '').trim()) {
+    throw formsDocsPendentesError_('Campo do Drive vazio no negocio.', {
+      dealId: deal && deal.id
+    })
+  }
+  return String(link || '').trim()
+}
+
+function formsDocsPendentesGetDealFieldValue_(deal, fieldKey) {
+  if (!deal || !fieldKey) return null
+  const key = String(fieldKey)
+  if (Object.prototype.hasOwnProperty.call(deal, key)) return deal[key]
+  if (deal.custom_fields && typeof deal.custom_fields === 'object' && Object.prototype.hasOwnProperty.call(deal.custom_fields, key)) {
+    return deal.custom_fields[key]
+  }
+  if (typeof posTriagemGetDealFieldValue_ === 'function') return posTriagemGetDealFieldValue_(deal, key)
+  return null
+}
+
+function formsDocsPendentesExtractDealId_(link) {
+  const text = String(link || '').trim()
+  if (!text) throw formsDocsPendentesError_('Link do negocio vazio.', {})
+  const patterns = [
+    /\/deal\/(\d+)/i,
+    /\/deals\/(\d+)/i,
+    /[?&]deal_id=(\d+)/i,
+    /[?&]id=(\d+)/i
+  ]
+  for (let i = 0; i < patterns.length; i++) {
+    const match = text.match(patterns[i])
+    if (match && /^\d+$/.test(match[1])) return match[1]
+  }
+  if (/^\d+$/.test(text)) return text
+  throw formsDocsPendentesError_('Deal ID invalido no link do Pipedrive.', { dealLink: text })
+}
+
+function formsDocsPendentesResolveDriveFolderFromLink_(link) {
+  const folderId = formsDocsPendentesExtractDriveFolderId_(link)
+  try {
+    return DriveApp.getFolderById(folderId)
+  } catch (error) {
+    throw formsDocsPendentesError_('Link do Drive invalido ou pasta inacessivel.', {
+      driveLink: link,
+      folderId: folderId,
+      cause: String(error && error.message ? error.message : error)
+    })
+  }
+}
+
+function formsDocsPendentesExtractDriveFolderId_(link) {
+  const text = String(link || '').trim()
+  if (!text) throw formsDocsPendentesError_('Link do Drive vazio.', {})
+  const patterns = [
+    /\/folders\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /\/drive\/u\/\d\/folders\/([a-zA-Z0-9_-]+)/
+  ]
+  for (let i = 0; i < patterns.length; i++) {
+    const match = text.match(patterns[i])
+    if (match) return match[1]
+  }
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(text)) return text
+  throw formsDocsPendentesError_('Link do Drive invalido.', { driveLink: text })
+}
+
+function formsDocsPendentesFindDestinationFolder_(rootFolder, destination) {
+  let current = rootFolder
+  const expectedPath = [rootFolder.getName()].concat(destination.path).join(' / ')
+  for (let i = 0; i < destination.path.length; i++) {
+    const segment = destination.path[i]
+    const next = formsDocsPendentesFindChildFolderStrict_(current, segment)
+    if (!next) {
+      throw formsDocsPendentesError_((i === 0 ? 'Pasta principal nao encontrada.' : 'Subpasta nao encontrada.') + ' Caminho esperado: ' + expectedPath, {
+        rootFolderId: rootFolder.getId(),
+        expectedPath: expectedPath
+      })
+    }
+    current = next
+  }
+  return current
+}
+
+function formsDocsPendentesResolveDestinationFolder_(rootFolder, destination) {
+  const expectedPath = [rootFolder.getName()].concat(destination.path).join(' / ')
+  try {
+    return {
+      folder: formsDocsPendentesFindDestinationFolder_(rootFolder, destination),
+      fallbackToRoot: false,
+      expectedPath: expectedPath
+    }
+  } catch (error) {
+    formsDocsPendentesLog_('forms_docs_pendentes', 'formsDocsPendentesResolveDestinationFolder_', 'WARN', {
+      title: 'Pasta destino nao encontrada; usando pasta fallback',
+      fields: expectedPath,
+      patch: {
+        rootFolderId: rootFolder && rootFolder.getId ? rootFolder.getId() : '',
+        expectedPath: expectedPath,
+        fallbackFolderId: FORMS_DOCS_PENDENTES_FALLBACK_FOLDER_ID_,
+        cause: String(error && error.message ? error.message : error)
+      }
+    })
+    return {
+      folder: DriveApp.getFolderById(FORMS_DOCS_PENDENTES_FALLBACK_FOLDER_ID_),
+      fallbackToRoot: true,
+      expectedPath: expectedPath
+    }
+  }
+}
+
+function formsDocsPendentesFindChildFolderStrict_(parentFolder, desiredName) {
+  const byName = parentFolder.getFoldersByName(desiredName)
+  if (byName.hasNext()) return byName.next()
+
+  const normalizedTarget = formsDocsPendentesNormalizeText_(desiredName)
+  const matches = []
+  const folders = parentFolder.getFolders()
+  while (folders.hasNext()) {
+    const folder = folders.next()
+    if (formsDocsPendentesNormalizeText_(folder.getName()) === normalizedTarget) {
+      matches.push(folder)
+    }
+  }
+
+  if (matches.length > 1) {
+    throw formsDocsPendentesError_('Subpasta encontrada de forma ambigua.', {
+      parentFolderId: parentFolder.getId(),
+      desiredName: desiredName,
+      matchIds: matches.map(function(item) { return item.getId() })
+    })
+  }
+  return matches[0] || null
+}
+
+function formsDocsPendentesProcessUploadedFiles_(submission, destinationFolder, destination) {
+  const results = []
+  for (let i = 0; i < submission.fileIds.length; i++) {
+    const fileId = submission.fileIds[i]
+    const baseKey = formsDocsPendentesBuildIdempotencyKey_({
+      responseId: submission.responseId,
+      dealId: submission.dealId,
+      fileId: fileId,
+      destinationFolderId: destinationFolder.getId()
+    })
+    const uploadStateKey = formsDocsPendentesBuildStepKey_(baseKey, FORMS_DOCS_PENDENTES_UPLOAD_STEP_)
+    const previous = formsDocsPendentesReadStepState_(uploadStateKey)
+    if (previous && previous.status === 'done') {
+      results.push(previous.result)
+      continue
+    }
+
+    const sourceFile = formsDocsPendentesGetDriveFile_(fileId, submission)
+    const originalName = sourceFile.getName()
+    const targetName = formsDocsPendentesBuildTargetFileName_(submission.documentTypeRaw, originalName, destinationFolder)
+    const existing = typeof buscarArquivoPorNomeNaPasta_ === 'function'
+      ? buscarArquivoPorNomeNaPasta_(destinationFolder, targetName)
+      : null
+
+    if (existing) {
+      throw formsDocsPendentesError_('Tentativa de processamento duplicado ou conflito de nome na pasta destino.', {
+        propertyCode: submission.propertyCode,
+        dealId: submission.dealId,
+        responseId: submission.responseId,
+        documentType: submission.documentTypeRaw,
+        fileId: fileId,
+        fileName: targetName,
+        expectedPath: destination.path.join(' / ')
+      })
+    }
+
+    let copied = null
+    try {
+      copied = sourceFile.makeCopy(targetName, destinationFolder)
+    } catch (error) {
+      throw formsDocsPendentesError_('Falha ao copiar ou mover arquivo.', {
+        propertyCode: submission.propertyCode,
+        dealId: submission.dealId,
+        responseId: submission.responseId,
+        documentType: submission.documentTypeRaw,
+        fileId: fileId,
+        fileName: targetName,
+        expectedPath: destination.path.join(' / '),
+        cause: String(error && error.message ? error.message : error)
+      })
+    }
+
+    const result = {
+      sourceFileId: fileId,
+      sourceFileName: originalName,
+      copiedFileId: copied.getId(),
+      copiedFileName: copied.getName(),
+      copiedFileUrl: copied.getUrl(),
+      destinationFolderId: destinationFolder.getId(),
+      destinationFolderUrl: destinationFolder.getUrl(),
+      action: 'copied'
+    }
+    formsDocsPendentesWriteStepState_(uploadStateKey, { status: 'done', result: result })
+    results.push(result)
+  }
+
+  return results
+}
+
+function formsDocsPendentesEnsureVerificationActivity_(submission, destination, uploadResults, deal) {
+  const activityKey = formsDocsPendentesBuildStepKey_(formsDocsPendentesBuildIdempotencyKey_({
+    responseId: submission.responseId,
+    dealId: submission.dealId,
+    step: FORMS_DOCS_PENDENTES_ACTIVITY_STEP_
+  }), FORMS_DOCS_PENDENTES_ACTIVITY_STEP_)
+  const previous = formsDocsPendentesReadStepState_(activityKey)
+  if (previous && previous.status === 'done') return previous.result
+
+  formsDocsPendentesValidatePriority_()
+
+  const dueDate = formsDocsPendentesFormatDate_(formsDocsPendentesAddBusinessDays_(new Date(), 3))
+  const fileNames = uploadResults.map(function(item) { return item.copiedFileName || item.sourceFileName }).join(', ')
+  const partnerName = String(submission.partnerName || '').trim() || 'Parceiro não informado'
+  const reason = String(submission.reason || '').trim()
+  const payload = {
+    subject: FORMS_DOCS_PENDENTES_ACTIVITY_SUBJECT_PREFIX_ + ' (' + submission.documentTypeRaw + ')',
+    note: formsDocsPendentesBuildActivityNote_(partnerName, fileNames, reason),
+    type: FORMS_DOCS_PENDENTES_ACTIVITY_TYPE_KEY_,
+    deal_id: Number(submission.dealId),
+    user_id: FORMS_DOCS_PENDENTES_ACTIVITY_OWNER_ID_,
+    due_date: dueDate
+  }
+  payload[FORMS_DOCS_PENDENTES_ACTIVITY_PRIORITY_FIELD_KEY_] = PENDENCIA_PARCEIRO_PRIORITY_OPTION_ID
+
+  const existing = formsDocsPendentesFindExistingActivity_(submission.dealId, payload.subject)
+  if (existing && existing.id) {
+    const reused = { action: 'reused_existing', activityId: existing.id, dueDate: existing.due_date || dueDate, subject: existing.subject || payload.subject }
+    formsDocsPendentesWriteStepState_(activityKey, { status: 'done', result: reused })
+    return reused
+  }
+
+  try {
+    const created = formsDocsPendentesCreateActivity_(payload)
+    const result = {
+      action: 'created',
+      activityId: created && created.id,
+      dueDate: created && created.due_date || dueDate,
+      subject: created && created.subject || payload.subject
+    }
+    formsDocsPendentesWriteStepState_(activityKey, { status: 'done', result: result })
+    return result
+  } catch (error) {
+    formsDocsPendentesLog_('forms_docs_pendentes', 'formsDocsPendentesEnsureVerificationActivity_', 'ERROR', {
+      dealId: submission.dealId,
+      title: String(deal && deal.title || ''),
+      fields: 'upload concluido, atividade pendente',
+      patch: {
+        responseId: submission.responseId,
+        documentType: submission.documentTypeRaw,
+        files: uploadResults,
+        error: String(error && error.message ? error.message : error)
+      }
+    })
+    throw formsDocsPendentesError_('Falha ao criar atividade no Pipedrive.', {
+      propertyCode: submission.propertyCode,
+      dealId: submission.dealId,
+      responseId: submission.responseId,
+      documentType: submission.documentTypeRaw,
+      fileNames: fileNames,
+      cause: String(error && error.message ? error.message : error)
+    })
+  }
+}
+
+function formsDocsPendentesBuildTargetFileName_(documentTypeRaw, originalName, destinationFolder) {
+  const ext = formsDocsPendentesExtractFileExtension_(originalName)
+  const baseLabel = formsDocsPendentesSanitizeFileNamePart_(documentTypeRaw) || 'Arquivo'
+  const suffix = ext ? '.' + ext : ''
+  let candidate = baseLabel + suffix
+  let attempt = 2
+
+  while (typeof buscarArquivoPorNomeNaPasta_ === 'function' && buscarArquivoPorNomeNaPasta_(destinationFolder, candidate)) {
+    candidate = baseLabel + ' - ' + attempt + suffix
+    attempt++
+  }
+
+  return candidate
+}
+
+function formsDocsPendentesBuildActivityNote_(partnerName, fileNames, reason) {
+  const lines = [
+    'Arquivo não anexado pelo parceiro (' + String(partnerName || '').trim() + ')',
+    'Tipo do Arquivo: (' + String(fileNames || '').trim() + ')'
+  ]
+  if (String(reason || '').trim()) lines.push('Motivo: ' + String(reason || '').trim())
+  return lines.join('\n')
+}
+
+function formsDocsPendentesExtractFileExtension_(fileName) {
+  const text = String(fileName || '').trim()
+  if (!text) return ''
+  const idx = text.lastIndexOf('.')
+  if (idx <= 0 || idx === text.length - 1) return ''
+  return text.substring(idx + 1)
+}
+
+function formsDocsPendentesSanitizeFileNamePart_(value) {
+  return String(value || '')
+    .replace(/[\\/:*?"<>|#%{}~&]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function formsDocsPendentesFindExistingActivity_(dealId, subject) {
+  const client = formsDocsPendentesGetPipedriveClient_()
+  if (client && client.deals && typeof client.deals.activities === 'function') {
+    const response = client.deals.activities(dealId, { done: 0, limit: 500 })
+    const items = response && Array.isArray(response.data) ? response.data : []
+    for (let i = 0; i < items.length; i++) {
+      if (String(items[i].subject || '').trim() === String(subject || '').trim()) return items[i]
+    }
+    return null
+  }
+
+  if (typeof callPipedrive === 'function') {
+    const items = callPipedrive('activities?deal_id=' + encodeURIComponent(String(dealId)) + '&done=0&limit=500', 'GET', null) || []
+    for (let j = 0; j < items.length; j++) {
+      if (String(items[j].subject || '').trim() === String(subject || '').trim()) return items[j]
+    }
+  }
+  return null
+}
+
+function formsDocsPendentesCreateActivity_(payload) {
+  const client = formsDocsPendentesGetPipedriveClient_()
+  if (client && client.activities && typeof client.activities.create === 'function') {
+    return client.activities.create(payload).data
+  }
+  if (typeof callPipedrive === 'function') return callPipedrive('activities', 'POST', payload)
+  throw formsDocsPendentesError_('Cliente do Pipedrive nao disponivel para criar atividade.', {})
+}
+
+function formsDocsPendentesValidatePriority_() {
+  const allowed = { 25: true, 26: true, 27: true }
+  if (!allowed[PENDENCIA_PARCEIRO_PRIORITY_OPTION_ID]) {
+    throw formsDocsPendentesError_('Prioridade nao configurada.', {
+      configuredValue: PENDENCIA_PARCEIRO_PRIORITY_OPTION_ID
+    })
+  }
+}
+
+function formsDocsPendentesGetDriveFile_(fileId, submission) {
+  try {
+    return DriveApp.getFileById(fileId)
+  } catch (error) {
+    throw formsDocsPendentesError_('Arquivo nao encontrado.', {
+      propertyCode: submission && submission.propertyCode,
+      dealId: submission && submission.dealId,
+      responseId: submission && submission.responseId,
+      fileId: fileId,
+      cause: String(error && error.message ? error.message : error)
+    })
+  }
+}
+
+function formsDocsPendentesBuildIdempotencyKey_(data) {
+  const pieces = [
+    data && data.responseId || '',
+    data && data.dealId || '',
+    data && data.fileId || '',
+    data && data.destinationFolderId || '',
+    data && data.step || ''
+  ]
+  const raw = pieces.join('|')
+  return FORMS_DOCS_PENDENTES_STATE_PREFIX_ + ':' + formsDocsPendentesHashText_(raw)
+}
+
+function formsDocsPendentesBuildStepKey_(baseKey, step) {
+  return String(baseKey || '') + ':' + String(step || '')
+}
+
+function formsDocsPendentesReadStepState_(key) {
+  const raw = PropertiesService.getScriptProperties().getProperty(String(key || ''))
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch (error) {
+    return null
+  }
+}
+
+function formsDocsPendentesWriteStepState_(key, value) {
+  PropertiesService.getScriptProperties().setProperty(String(key || ''), JSON.stringify(value || {}))
+}
+
+function formsDocsPendentesExtractResponseId_(e) {
+  try {
+    if (e && e.response && typeof e.response.getId === 'function') return String(e.response.getId())
+  } catch (error) {}
+  return ''
+}
+
+function formsDocsPendentesBuildFallbackResponseId_(row) {
+  return 'fallback:' + formsDocsPendentesHashText_((row || []).map(function(item) { return String(item || '') }).join('|'))
+}
+
+function formsDocsPendentesGetValueByHeaderAliases_(headers, row, aliases) {
+  const wanted = (aliases || []).map(formsDocsPendentesNormalizeText_).filter(Boolean)
+  for (let i = 0; i < headers.length; i++) {
+    const header = formsDocsPendentesNormalizeText_(headers[i])
+    if (!header) continue
+    const matched = wanted.some(function(alias) {
+      return header === alias || header.indexOf(alias) >= 0
+    })
+    if (matched && String(row[i] || '').trim()) return String(row[i] || '').trim()
+  }
+  return ''
+}
+
+function formsDocsPendentesExtractDriveFileRefs_(value) {
+  const text = String(value || '').trim()
+  if (!text) return []
+  const refs = []
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]{20,})/g,
+    /\/d\/([a-zA-Z0-9_-]{20,})/g,
+    /[?&]id=([a-zA-Z0-9_-]{20,})/g,
+    /\/open\?id=([a-zA-Z0-9_-]{20,})/g
+  ]
+  patterns.forEach(function(pattern) {
+    let match = pattern.exec(text)
+    while (match) {
+      refs.push(match[1])
+      match = pattern.exec(text)
+    }
+  })
+  text.split(/[\s,|;]+/).forEach(function(part) {
+    const item = String(part || '').trim()
+    if (/^[a-zA-Z0-9_-]{25,}$/.test(item) && item.indexOf('http') !== 0) refs.push(item)
+  })
+  return formsDocsPendentesUnique_(refs)
+}
+
+function formsDocsPendentesLooksLikeDriveUploadValue_(value) {
+  const text = String(value || '').trim()
+  if (!text) return false
+  return text.indexOf('drive.google.com') >= 0 || /^[a-zA-Z0-9_-]{25,}$/.test(text)
+}
+
+function formsDocsPendentesAddBusinessDays_(startDate, businessDays) {
+  let current = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+  let remaining = Number(businessDays || 0)
+  while (remaining > 0) {
+    current.setDate(current.getDate() + 1)
+    if (formsDocsPendentesIsBusinessDay_(current)) remaining--
+  }
+  return current
+}
+
+function formsDocsPendentesIsBusinessDay_(date) {
+  const day = date.getDay()
+  if (day === 0 || day === 6) return false
+  if (typeof BD_getBrBankHolidaySetForYear_ === 'function') {
+    const holidays = BD_getBrBankHolidaySetForYear_(date.getFullYear())
+    return !holidays.has(formsDocsPendentesFormatDate_(date))
+  }
+  return true
+}
+
+function formsDocsPendentesFormatDate_(date) {
+  return Utilities.formatDate(date, formsDocsPendentesGetTimezone_(), 'yyyy-MM-dd')
+}
+
+function formsDocsPendentesGetTimezone_() {
+  try {
+    return Session.getScriptTimeZone() || FORMS_DOCS_PENDENTES_TIMEZONE_FALLBACK_
+  } catch (error) {
+    return FORMS_DOCS_PENDENTES_TIMEZONE_FALLBACK_
+  }
+}
+
+function formsDocsPendentesWithLock_(fn, event) {
+  const lock = LockService.getScriptLock()
+  try {
+    lock.waitLock(FORMS_DOCS_PENDENTES_LOCK_WAIT_MS_)
+  } catch (error) {
+    throw formsDocsPendentesError_('Tentativa de processamento duplicado: lock ocupado.', {
+      responseId: formsDocsPendentesExtractResponseId_(event)
+    })
+  }
+  try {
+    return fn()
+  } finally {
+    try { lock.releaseLock() } catch (releaseError) {}
+  }
+}
+
+function formsDocsPendentesNormalizeText_(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s/()-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function formsDocsPendentesUnique_(items) {
+  const seen = {}
+  return (items || []).filter(function(item) {
+    const key = String(item || '').trim()
+    if (!key || seen[key]) return false
+    seen[key] = true
+    return true
+  })
+}
+
+function formsDocsPendentesHashText_(text) {
+  let hash = 0
+  const value = String(text || '')
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0
+  }
+  return String(hash)
+}
+
+function formsDocsPendentesLog_(action, fn, altered, details) {
+  const payload = details || {}
+  if (typeof appendLog_ === 'function') {
+    appendLog_({
+      timestamp: new Date(),
+      dealId: payload.dealId || '',
+      title: payload.title || '',
+      action: action,
+      fn: fn,
+      altered: altered,
+      fields: payload.fields || '',
+      patch: payload.patch || {},
+      changedKeys: payload.changedKeys || []
+    })
+    return
+  }
+  Logger.log(JSON.stringify({ action: action, fn: fn, altered: altered, details: payload }))
+}
+
+function formsDocsPendentesError_(message, context) {
+  const error = new Error(String(message || 'Erro em Forms-Docs-Pendentes'))
+  error.context = context || {}
+  return error
+}
+
+function formsDocsPendentesAssert_(condition, message) {
+  if (!condition) throw new Error(String(message || 'Assert falhou'))
+}

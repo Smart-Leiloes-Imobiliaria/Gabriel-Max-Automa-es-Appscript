@@ -1,0 +1,540 @@
+const WEBHOOK_DAVI_SERVICE_NAME_ = 'Webhooks | Financeiro Terceiros'
+const TEST_DEAL_IDS_ = []
+const DEBUG_LOG_WEBHOOK_RECEIVED_ = false
+const RAW_LOG_TRUNCATE_ = 2500
+
+function shouldLogRawWebhookPayload_() {
+  if (typeof getWebhookVerboseLogEnabled_ === 'function') return getWebhookVerboseLogEnabled_()
+  return DEBUG_LOG_WEBHOOK_RECEIVED_
+}
+
+function shouldLogWebhookDiagnosticEntries_() {
+  if (typeof getWebhookVerboseLogEnabled_ === 'function') return getWebhookVerboseLogEnabled_()
+  return false
+}
+
+function buildWebhookEventFingerprint_(event) {
+  let raw = ''
+  try { raw = JSON.stringify(event || {}) } catch (_) { raw = String(event || '') }
+  if (!raw) return ''
+
+  if (typeof stableHash32Text_ === 'function') {
+    return String(stableHash32Text_(raw))
+  }
+
+  let hash = 0
+  for (let i = 0; i < raw.length; i++) {
+    hash = (hash * 31 + raw.charCodeAt(i)) >>> 0
+  }
+  return String(hash)
+}
+
+function webhookEventSeenRecently_(fingerprint) {
+  const key = String(fingerprint || '').trim()
+  if (!key) return false
+  return !!CacheService.getScriptCache().get('WEBHOOK_EVENT_' + key)
+}
+
+function markWebhookEventSeen_(fingerprint) {
+  const key = String(fingerprint || '').trim()
+  if (!key) return
+  const ttl = typeof getWebhookEventDedupTtlSeconds_ === 'function' ? getWebhookEventDedupTtlSeconds_() : 180
+  CacheService.getScriptCache().put('WEBHOOK_EVENT_' + key, String(Date.now()), ttl)
+}
+
+function appendWebhookDecisionLog_(timestamp, norm, altered, fields, patch, changedKeys) {
+  if (String(altered || '').trim().toUpperCase() === 'SKIP' && !shouldLogWebhookDiagnosticEntries_()) {
+    return
+  }
+
+  appendLog_({
+    timestamp: timestamp || new Date(),
+    dealId: norm && norm.dealId ? norm.dealId : '',
+    title: norm && norm.title ? norm.title : '',
+    action: norm && norm.action ? norm.action : '',
+    fn: 'webhook_event',
+    altered: altered,
+    fields: fields,
+    patch: patch,
+    changedKeys: Array.isArray(changedKeys) ? changedKeys : []
+  })
+}
+
+function applyPatchedFieldsToDeal_(deal, patch) {
+  var target = deal && typeof deal === 'object' ? deal : {}
+  var source = patch && typeof patch === 'object' ? patch : {}
+  var keys = Object.keys(source)
+
+  if (!target.custom_fields || typeof target.custom_fields !== 'object') {
+    target.custom_fields = {}
+  }
+
+  for (var i = 0; i < keys.length; i++) {
+    var key = String(keys[i] || '').trim()
+    if (!key) continue
+    target[key] = source[key]
+    target.custom_fields[key] = source[key]
+  }
+
+  return target
+}
+
+function doGet() {
+  return jsonOut_({
+    ok: true,
+    service: WEBHOOK_DAVI_SERVICE_NAME_,
+    url: safeWebhookUrl_(),
+    testDealIds: TEST_DEAL_IDS_,
+    debugLogReceived: shouldLogRawWebhookPayload_()
+  })
+}
+
+function doPost(e) {
+  return handleWebhookDaviPost_(e)
+}
+
+function normalizeWebhookEvent_(payload) {
+  const meta = payload && payload.meta ? payload.meta : {}
+  const action = (meta.action || payload.action || payload.event_action || '').toString()
+  const entity = (meta.entity || meta.object || payload.entity || payload.object || payload.event_object || '').toString()
+
+  const isV2Shape = !!payload.data || meta.version === '2.0'
+  const current = isV2Shape ? (payload.data || {}) : (payload.current || payload.data || {})
+  const previous = payload.previous || payload.previous_data || (meta.previous || {}) || {}
+
+  const dealId =
+    (current && (current.id != null) && normalizeWebhookEntityName_(entity) === 'deal') ? String(current.id) :
+    (current && (current.deal_id != null)) ? normalizeWebhookId_(current.deal_id) :
+    (current && current.deal && current.deal.id != null) ? normalizeWebhookId_(current.deal.id) :
+    (meta && (meta.entity_id != null) && normalizeWebhookEntityName_(entity) === 'deal') ? String(meta.entity_id) :
+    (previous && (previous.id != null) && normalizeWebhookEntityName_(entity) === 'deal') ? String(previous.id) :
+    ''
+
+  const activityId =
+    (normalizeWebhookEntityName_(entity) === 'activity' && current && current.id != null) ? String(current.id) :
+    (normalizeWebhookEntityName_(entity) === 'activity' && meta && meta.entity_id != null) ? String(meta.entity_id) :
+    ''
+
+  const title = (current && current.title) ? String(current.title) : ''
+  const currentStageId = (current && current.stage_id != null) ? Number(current.stage_id) : null
+  const currentPipelineId = (current && current.pipeline_id != null) ? Number(current.pipeline_id) : null
+  const hasPreviousStageId = !!(previous && Object.prototype.hasOwnProperty.call(previous, 'stage_id'))
+  const previousStageId = hasPreviousStageId ? Number(previous.stage_id) : currentStageId
+  const stageChanged = hasPreviousStageId ? (previousStageId !== currentStageId) : false
+  const eventTimestamp = (meta && meta.timestamp) || (current && (current.stage_change_time || current.update_time)) || ''
+
+  const prevCustom = previous && previous.custom_fields ? previous.custom_fields : null
+  const customChanged = prevCustom ? Object.keys(prevCustom) : []
+  const systemChanged = previous ? Object.keys(previous).filter(function(k) { return k !== 'custom_fields' }) : []
+
+  const changedKeysRaw = customChanged.concat(systemChanged).map(String)
+
+  return {
+    action: action,
+    entity: entity,
+    dealId: dealId,
+    activityId: activityId,
+    title: title,
+    changedKeysRaw: changedKeysRaw,
+    currentStageId: currentStageId,
+    previousStageId: previousStageId,
+    currentPipelineId: currentPipelineId,
+    stageChanged: stageChanged,
+    eventTimestamp: eventTimestamp
+  }
+}
+
+function normalizeWebhookEntityName_(entity) {
+  const value = String(entity || '').trim().toLowerCase()
+  if (value === 'deals') return 'deal'
+  if (value === 'activities') return 'activity'
+  return value
+}
+
+function normalizeWebhookId_(value) {
+  if (value && typeof value === 'object' && value.id != null) return String(value.id)
+  return String(value == null ? '' : value)
+}
+
+var __FIELDS_READY__ = false
+
+function ensureFieldsScopes_() {
+  if (__FIELDS_READY__) return
+  var f = (typeof FIELDS_ !== "undefined" && FIELDS_) ? FIELDS_ : null
+
+  if (typeof DA_ === "undefined" || !DA_) {
+    if (f && (f.DA_ || f.DA)) DA_ = f.DA_ || f.DA
+  }
+  if (typeof TA_ === "undefined" || !TA_) {
+    if (f && (f.TA_ || f.TA)) TA_ = f.TA_ || f.TA
+  }
+  if (typeof TC_ === "undefined" || !TC_) {
+    if (f && (f.TC_ || f.TC)) TC_ = f.TC_ || f.TC
+  }
+  if (typeof ENUM_ === "undefined" || !ENUM_) {
+    if (f && (f.ENUM_ || f.ENUM)) ENUM_ = f.ENUM_ || f.ENUM
+  }
+
+  __FIELDS_READY__ = true
+}
+
+var DA_START_FIELDS_SET_
+var TA_NUMERIC_FIELD_CACHE_
+
+function getDAStartFieldsSet_() {
+  ensureFieldsScopes_()
+  if (DA_START_FIELDS_SET_) return DA_START_FIELDS_SET_
+  var d = (typeof DA_ !== "undefined" && DA_) ? DA_ : {}
+  DA_START_FIELDS_SET_ = new Set([
+    d.INI_TRIAGEM,
+    d.INI_CONTRATO,
+    d.INI_ITBI,
+    d.INI_TITULARIDADE,
+    d.INI_PROTOCOLO_TITULARIDADE,
+    d.INI_LEILOES,
+    d.INI_REGISTRO,
+    d.INI_IPTU,
+    d.INI_CONDOMINIO,
+    d.INI_DESOCUPACAO
+  ].filter(Boolean).map(String))
+  return DA_START_FIELDS_SET_
+}
+
+function isTempoCounterNumericField_(fieldId) {
+  var id = String(fieldId || '').trim()
+  if (!id) return false
+
+  if (!TA_NUMERIC_FIELD_CACHE_) TA_NUMERIC_FIELD_CACHE_ = {}
+  if (Object.prototype.hasOwnProperty.call(TA_NUMERIC_FIELD_CACHE_, id)) {
+    return TA_NUMERIC_FIELD_CACHE_[id]
+  }
+
+  var isNumeric = true
+  try {
+    if (typeof tpsGetDealFieldMeta_ === 'function') {
+      var meta = tpsGetDealFieldMeta_() || {}
+      var item = meta[id]
+      if (item && item.fieldType) {
+        var fieldType = String(item.fieldType || '').toLowerCase().trim()
+        isNumeric = fieldType === 'double' || fieldType === 'monetary'
+      }
+    }
+  } catch (_) {}
+
+  TA_NUMERIC_FIELD_CACHE_[id] = isNumeric
+  return isNumeric
+}
+
+function statusFgtsKey_() {
+  ensureFieldsScopes_()
+  return (DA_ && (DA_.STATUS_FGTS_WEBHOOK || DA_.STATUS_FGTS || DA_.STATUS_FGTS_TC)) || null
+}
+
+function tempoEmAndamentoTriggerKeys_() {
+  ensureFieldsScopes_()
+  var d = (typeof DA_ !== "undefined" && DA_) ? DA_ : {}
+  var stFgts = statusFgtsKey_()
+  return [
+    d.PROPOSTA_VENCEDORA, d.CONTRATACAO, d.PREENCHIMENTO_FORM_ARREMATANTES, d.FORMA_PAGAMENTO,
+    d.INI_TRIAGEM, d.FIM_TRIAGEM,
+    d.INI_CANCELAMENTO, d.FIM_CANCELAMENTO,
+    d.INI_CONTRATO, d.MINUTA_REVISADA, d.FIM_CONTRATO,
+    d.INI_ITBI, d.FIM_ITBI,
+    d.INI_TITULARIDADE, d.INI_PROTOCOLO_TITULARIDADE, d.FIM_TITULARIDADE, d.MOMENTO_TITULARIDADE,
+    d.INI_LEILOES, d.FIM_LEILOES,
+    d.INI_REGISTRO, d.FIM_REGISTRO,
+    d.INI_IPTU, d.FIM_IPTU,
+    d.INI_CONDOMINIO, d.FIM_CONDOMINIO,
+    d.INI_DESOCUPACAO, d.FIM_DESOCUPACAO,
+    d.UF,
+    stFgts, d.STATUS_ESCRITURA, d.STATUS_CCV, d.MUDOU_PARA_ESCRITURA,
+    d.STATUS_DESOCUPACAO,
+    d.STATUS_CANCELAMENTO
+  ].filter(Boolean).map(String)
+}
+
+function tempoEmAndamentoOutputKeys_() {
+  ensureFieldsScopes_()
+  var keys = []
+  if (typeof TA_ !== "undefined" && TA_) {
+    keys = keys.concat(Object.keys(TA_).map(function (k) { return TA_[k] }))
+  }
+  if (typeof TC_ !== "undefined" && TC_ && TC_.TC_CONTRATOS) {
+    keys.push(TC_.TC_CONTRATOS)
+  }
+  return Array.from(new Set(keys.filter(function(key) {
+    return key && isTempoCounterNumericField_(key)
+  }).map(String)))
+}
+
+function calculaTempoEmAndamento(deal, changedKeys, options) {
+  ensureFieldsScopes_()
+  options = Object.assign({ force: false, asOf: null, dryRun: false, onlyFields: null }, options || {})
+  var ck = Array.isArray(changedKeys) ? changedKeys.map(String) : []
+  if (!deal) throw new Error("Deal vazio em calculaTempoEmAndamento")
+
+  function getField_(k) {
+    if (!k) return undefined
+    if (Object.prototype.hasOwnProperty.call(deal, k)) return deal[k]
+    if (deal.custom_fields && Object.prototype.hasOwnProperty.call(deal.custom_fields, k)) return deal.custom_fields[k]
+    return undefined
+  }
+
+  function pickValue_(v) {
+    if (v == null) return null
+    if (typeof v === "object") {
+      if (Object.prototype.hasOwnProperty.call(v, "value")) return v.value == null ? null : v.value
+      if (Object.prototype.hasOwnProperty.call(v, "id")) return v.id == null ? null : v.id
+      if (Object.prototype.hasOwnProperty.call(v, "start_date")) return v.start_date == null ? null : v.start_date
+    }
+    return v
+  }
+
+  var triggerFields = tempoEmAndamentoTriggerKeys_()
+  var outputFields = tempoEmAndamentoOutputKeys_()
+  var hasChanges = ck.length === 0 ? true : ck.some(function (k) { return triggerFields.indexOf(k) >= 0 || outputFields.indexOf(k) >= 0 })
+  if (!options.force && !hasChanges) return "Sem match p/ Tempo em Andamento."
+
+  function parsePDDate_(raw) {
+    if (!raw) return null
+    if (raw && typeof raw === "object") {
+      if (raw.start_date) raw = raw.start_date
+      else if (raw.value) raw = raw.value
+    }
+    if (raw instanceof Date && !isNaN(raw.getTime())) {
+      var d = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate())
+      d.setHours(0, 0, 0, 0)
+      return d
+    }
+    if (typeof raw === "string") {
+      var m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+      if (m) {
+        var d0 = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+        d0.setHours(0, 0, 0, 0)
+        return d0
+      }
+      var d2 = new Date(raw)
+      if (!isNaN(d2.getTime())) {
+        var d1 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate())
+        d1.setHours(0, 0, 0, 0)
+        return d1
+      }
+    }
+    return null
+  }
+
+  function isValid_(d) {
+    return d instanceof Date && !isNaN(d.getTime()) && d.getFullYear() >= 2022
+  }
+
+  function diffBusinessDays_(start, end) {
+    if (!isValid_(start) || !isValid_(end)) return NaN
+    return businessDaysDiff_(start, end)
+  }
+
+  function diffCalendarDays_(start, end) {
+    if (!isValid_(start) || !isValid_(end)) return NaN
+    var s = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+    var e = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+    s.setHours(0, 0, 0, 0)
+    e.setHours(0, 0, 0, 0)
+    var ms = e.getTime() - s.getTime()
+    if (!isFinite(ms) || ms < 0) return NaN
+    return Math.floor(ms / 86400000)
+  }
+
+  var today = options.asOf ? (parsePDDate_(options.asOf) || new Date()) : new Date()
+  today.setHours(0, 0, 0, 0)
+
+  var patch = {}
+  var afetados = []
+
+  function setCounterValue_(fieldId, label, atualVal, dias) {
+    if (!isTempoCounterNumericField_(fieldId)) {
+      console.warn(JSON.stringify({
+        type: 'TEMPO_COUNTER_FIELD_SKIPPED',
+        fieldId: String(fieldId || ''),
+        label: String(label || ''),
+        reason: 'field_is_not_numeric_in_pipedrive'
+      }))
+      return
+    }
+
+    var curNum = atualVal === null || atualVal === "" || atualVal === undefined ? null : Number(atualVal)
+    if (curNum === null || !isFinite(curNum) || parseInt(curNum, 10) !== parseInt(dias, 10)) {
+      patch[fieldId] = dias
+      afetados.push(label + " = " + dias)
+    }
+  }
+
+  function setPausedCounter_(fieldId, startRaw, pauseRaw, label) {
+    if (!fieldId) return
+
+    var atualRaw = getField_(fieldId)
+    var atualVal = pickValue_(atualRaw)
+
+    var start = parsePDDate_(startRaw)
+    if (!isValid_(start) || start.getTime() > today.getTime()) {
+      return
+    }
+
+    var pause = parsePDDate_(pauseRaw)
+    var ref = isValid_(pause) ? pause : today
+    if (ref.getTime() > today.getTime()) ref = today
+
+    var dias = diffBusinessDays_(start, ref)
+    if (isNaN(dias) || dias < 0) {
+      return
+    }
+
+    setCounterValue_(fieldId, label, atualVal, dias)
+  }
+
+  function isActiveEnum_(value, naCode) {
+    if (value === null || value === undefined) return false
+    var v = String(pickValue_(value)).trim()
+    if (!v) return false
+    if (naCode && v === String(naCode)) return false
+    return true
+  }
+
+  function pickFlow_() {
+    var mudouKey = DA_ && DA_.MUDOU_PARA_ESCRITURA
+    var formaKey = DA_ && DA_.FORMA_PAGAMENTO
+
+    var mudou = String(pickValue_(getField_(mudouKey)) || "").trim()
+    if (mudou === "636") return "ESCRITURA"
+
+    var fp = String(pickValue_(getField_(formaKey)) || "").trim()
+    if (fp === "34" || fp === "190") return "FGTS"
+    if (fp === "550") return "ESCRITURA"
+    if (fp === "33") return "CCV"
+
+    if (isActiveEnum_(getField_(DA_ && DA_.STATUS_ESCRITURA), "246")) return "ESCRITURA"
+    if (isActiveEnum_(getField_(DA_ && DA_.STATUS_CCV), "308")) return "CCV"
+
+    var stFgtsK = statusFgtsKey_()
+    if (stFgtsK && isActiveEnum_(getField_(stFgtsK), "372")) return "FGTS"
+
+    return "FGTS"
+  }
+
+  function formPreenchimentoRaw_() {
+    return getField_(DA_ && DA_.PREENCHIMENTO_FORM_ARREMATANTES)
+  }
+
+  function minutaPauseRaw_() {
+    return getField_(DA_ && DA_.MINUTA_REVISADA) || getField_(DA_ && DA_.FIM_CONTRATO)
+  }
+
+  function contratosTempoStartRaw_() {
+    var minuta = parsePDDate_(getField_(DA_ && DA_.MINUTA_REVISADA))
+    if (isValid_(minuta)) return getField_(DA_ && DA_.MINUTA_REVISADA)
+    return null
+  }
+
+  function itbiTempoStartRaw_() {
+    var flow = pickFlow_()
+    if (flow === "FGTS") return getField_(DA_ && DA_.FIM_CONTRATO)
+    return formPreenchimentoRaw_()
+  }
+
+  function titularidadeStart_() {
+    var momento = String(pickValue_(getField_(DA_ && DA_.MOMENTO_TITULARIDADE)) || "").trim()
+    if (momento === "1071") return getField_(DA_ && DA_.FIM_ITBI)
+    if (momento === "1072") return getField_(DA_ && DA_.FIM_CONTRATO)
+    if (momento === "1073") return getField_(DA_ && DA_.FIM_REGISTRO)
+    return getField_(DA_ && DA_.INI_TITULARIDADE) || getField_(DA_ && DA_.INI_PROTOCOLO_TITULARIDADE)
+  }
+
+  function registroTempoStartRaw_() {
+    return formPreenchimentoRaw_()
+  }
+
+  function desocupacaoUsesRegistroBase_() {
+    var enumDes = (ENUM_ && ENUM_.STATUS_DESOCUPACAO)
+      ? ENUM_.STATUS_DESOCUPACAO
+      : { AGUARDAR_REGISTRO: "791", AGUARDAR_ACAO_JUDICIAL: "1972" }
+    var statusDes = String(pickValue_(getField_(DA_ && DA_.STATUS_DESOCUPACAO)) || "").trim()
+    if (!statusDes) return false
+
+    return (
+      statusDes === String(enumDes.AGUARDAR_REGISTRO || "") ||
+      statusDes === String(enumDes.AGUARDAR_ACAO_JUDICIAL || "")
+    )
+  }
+
+  function leiloesStart_() {
+    return getField_(DA_ && DA_.INI_LEILOES) ||
+      getField_(DA_ && DA_.FIM_TRIAGEM) ||
+      getField_(DA_ && DA_.CONTRATACAO) ||
+      getField_(DA_ && DA_.PROPOSTA_VENCEDORA)
+  }
+
+  function desocupacaoStartRaw_() {
+    if (desocupacaoUsesRegistroBase_()) {
+      var fimRegistro = getField_(DA_ && DA_.FIM_REGISTRO)
+      if (isValid_(parsePDDate_(fimRegistro))) return fimRegistro
+      return null
+    }
+
+    var ini = getField_(DA_ && DA_.INI_DESOCUPACAO)
+    if (isValid_(parsePDDate_(ini))) return ini
+    return null
+  }
+
+  function cancelamentoStartRaw_() {
+    return getField_(DA_ && DA_.INI_CANCELAMENTO)
+  }
+
+  setPausedCounter_(TA_ && TA_.PRE_ARREMATACAO, getField_(DA_ && DA_.PROPOSTA_VENCEDORA), getField_(DA_ && DA_.CONTRATACAO), "TA_PRE_ARREMATACAO")
+  setPausedCounter_(TA_ && TA_.TRIAGEM, getField_(DA_ && DA_.CONTRATACAO), getField_(DA_ && DA_.FIM_TRIAGEM), "TA_TRIAGEM")
+  setPausedCounter_(TA_ && TA_.CANCELAMENTOS, cancelamentoStartRaw_(), getField_(DA_ && DA_.FIM_CANCELAMENTO), "TA_CANCELAMENTOS")
+
+  // Campo de conclusão de contratos foi reaproveitado para armazenar o tempo de minuta.
+  setPausedCounter_(TC_ && TC_.TC_CONTRATOS, formPreenchimentoRaw_(), minutaPauseRaw_(), "TC_MINUTA")
+  setPausedCounter_(TA_ && TA_.CONTRATOS, contratosTempoStartRaw_(), getField_(DA_ && DA_.FIM_CONTRATO), "TA_CONTRATOS")
+
+  setPausedCounter_(TA_ && TA_.ITBI, itbiTempoStartRaw_(), getField_(DA_ && DA_.FIM_ITBI), "TA_ITBI")
+
+  setPausedCounter_(TA_ && TA_.REGISTRO, registroTempoStartRaw_(), getField_(DA_ && DA_.FIM_REGISTRO), "TA_REGISTRO")
+
+  setPausedCounter_(TA_ && TA_.TITULARIDADE, titularidadeStart_(), getField_(DA_ && DA_.FIM_TITULARIDADE), "TA_TITULARIDADE")
+
+  setPausedCounter_(TA_ && TA_.LEILOES, leiloesStart_(), getField_(DA_ && DA_.FIM_LEILOES), "TA_LEILOES")
+
+  setPausedCounter_(TA_ && TA_.IPTU, formPreenchimentoRaw_(), getField_(DA_ && DA_.FIM_IPTU), "TA_IPTU")
+  setPausedCounter_(TA_ && TA_.CONDOMINIO, formPreenchimentoRaw_(), getField_(DA_ && DA_.FIM_CONDOMINIO), "TA_CONDOMINIO")
+
+  setPausedCounter_(TA_ && TA_.DESOCUPACAO, desocupacaoStartRaw_(), getField_(DA_ && DA_.FIM_DESOCUPACAO), "TA_DESOCUPACAO")
+
+  var finalPatch = patch
+  if (Array.isArray(options.onlyFields) && options.onlyFields.length > 0) {
+    var keep = new Set(options.onlyFields.map(String))
+    finalPatch = {}
+    Object.keys(patch).forEach(function (k) { if (keep.has(String(k))) finalPatch[k] = patch[k] })
+  }
+
+  var startSet = getDAStartFieldsSet_()
+  Object.keys(finalPatch).forEach(function (k) { if (startSet.has(String(k))) delete finalPatch[k] })
+
+  if (Object.keys(finalPatch).length > 0) {
+    if (options.dryRun) return { dryRun: true, patch: finalPatch, afetados: afetados }
+    callPipedrive("deals/" + deal.id, "PUT", finalPatch)
+    markPatchedDeal_(deal.id)
+    appendLog_({
+      timestamp: new Date(),
+      dealId: deal.id,
+      title: deal.title,
+      action: "changed",
+      fn: "calculaTempoEmAndamento",
+      altered: "SIM",
+      fields: afetados.join(", "),
+      patch: finalPatch,
+      changedKeys: ck
+    })
+    return "Atualizado: " + afetados.join(", ")
+  }
+
+  return "Nenhuma mudança necessária (Tempo em Andamento)."
+}

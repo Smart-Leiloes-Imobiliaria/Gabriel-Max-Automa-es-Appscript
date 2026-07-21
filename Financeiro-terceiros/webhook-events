@@ -1,0 +1,179 @@
+function registerWebhookDaviEvents_(e) {
+  registerWebhookDaviDealAutomation_(
+    e,
+    'validarExecutoresPendentesPagamentoMensal',
+    typeof validarExecutoresPendentesPagamentoMensal === 'function' ? validarExecutoresPendentesPagamentoMensal : null,
+    typeof notifExecTriggerKeys_ === 'function' ? notifExecTriggerKeys_ : null,
+    typeof notifExecOutputKeys_ === 'function' ? notifExecOutputKeys_ : null
+  )
+
+  registerWebhookDaviDealAutomationUpdatedOnly_(
+    e,
+    'delegaResponsavelCondominioNaTriagem',
+    typeof delegaResponsavelCondominioNaTriagem === 'function' ? delegaResponsavelCondominioNaTriagem : null,
+    typeof condominioAssignmentTriggerKeys_ === 'function' ? condominioAssignmentTriggerKeys_ : null,
+    typeof condominioAssignmentOutputKeys_ === 'function' ? condominioAssignmentOutputKeys_ : null
+  )
+
+  registerWebhookDaviDealAutomation_(
+    e,
+    'orquestraPosArrematacaoTriagem',
+    typeof orquestraPosArrematacaoTriagem === 'function' ? orquestraPosArrematacaoTriagem : null,
+    typeof posTriagemTriggerKeys_ === 'function' ? posTriagemTriggerKeys_ : null,
+    typeof posTriagemOutputKeys_ === 'function' ? posTriagemOutputKeys_ : null
+  )
+
+  registerWebhookDaviDealAutomation_(
+    e,
+    'orquestraInicioTriagemPorStage',
+    typeof orquestraInicioTriagemPorStage === 'function' ? orquestraInicioTriagemPorStage : null,
+    typeof inicioTriagemStageTriggerKeys_ === 'function' ? inicioTriagemStageTriggerKeys_ : null,
+    typeof inicioTriagemStageOutputKeys_ === 'function' ? inicioTriagemStageOutputKeys_ : null
+  )
+
+  registerWebhookDaviDealAutomation_(
+    e,
+    'delegaResponsavelPreArrematacaoNaChegadaDoImovel',
+    typeof delegaResponsavelPreArrematacaoNaChegadaDoImovel === 'function' ? delegaResponsavelPreArrematacaoNaChegadaDoImovel : null,
+    typeof preArrematacaoAssignmentTriggerKeys_ === 'function' ? preArrematacaoAssignmentTriggerKeys_ : null,
+    typeof preArrematacaoAssignmentOutputKeys_ === 'function' ? preArrematacaoAssignmentOutputKeys_ : null
+  )
+
+  registerWebhookDaviDealAutomation_(
+    e,
+    'orquestraFluxoFormulario',
+    typeof orquestraFluxoFormulario === 'function' ? orquestraFluxoFormulario : null,
+    typeof fluxoFormularioTriggerKeys_ === 'function' ? fluxoFormularioTriggerKeys_ : null,
+    typeof fluxoFormularioOutputKeys_ === 'function' ? fluxoFormularioOutputKeys_ : null
+  )
+
+  registerWebhookDaviDealAutomation_(
+    e,
+    'orquestraQuantidadeDevolutivasRegistro',
+    typeof orquestraQuantidadeDevolutivasRegistro === 'function' ? orquestraQuantidadeDevolutivasRegistro : null,
+    typeof registroDevolutivasTriggerKeys_ === 'function' ? registroDevolutivasTriggerKeys_ : null,
+    typeof registroDevolutivasOutputKeys_ === 'function' ? registroDevolutivasOutputKeys_ : null
+  )
+
+  if (typeof isCcaWebhookEnabled_ === 'function' && isCcaWebhookEnabled_()) {
+    registerWebhookDaviDealAutomation_(
+      e,
+      'orquestraCcaFinanciamento',
+      typeof orquestraCcaFinanciamento === 'function' ? orquestraCcaFinanciamento : null,
+      typeof ccaFinanciamentoTriggerKeys_ === 'function' ? ccaFinanciamentoTriggerKeys_ : null,
+      typeof ccaFinanciamentoOutputKeys_ === 'function' ? ccaFinanciamentoOutputKeys_ : null
+    )
+
+    registerWebhookDaviDealAutomation_(
+      e,
+      'orquestraCcaAnaliseCredito',
+      typeof orquestraCcaAnaliseCredito === 'function' ? orquestraCcaAnaliseCredito : null,
+      typeof ccaAnaliseCreditoTriggerKeys_ === 'function' ? ccaAnaliseCreditoTriggerKeys_ : null,
+      typeof ccaAnaliseCreditoOutputKeys_ === 'function' ? ccaAnaliseCreditoOutputKeys_ : null
+    )
+
+    registerWebhookDaviDealAutomation_(
+      e,
+      'orquestraCcaResponsavelSemFinanciamento',
+      typeof orquestraCcaResponsavelSemFinanciamento === 'function' ? orquestraCcaResponsavelSemFinanciamento : null,
+      typeof ccaResponsavelSemFinanciamentoTriggerKeys_ === 'function' ? ccaResponsavelSemFinanciamentoTriggerKeys_ : null,
+      typeof ccaResponsavelSemFinanciamentoOutputKeys_ === 'function' ? ccaResponsavelSemFinanciamentoOutputKeys_ : null
+    )
+  }
+
+  registerWebhookDaviDealAutomation_(
+    e,
+    'orquestraProprietarioPorEtapa',
+    typeof orquestraProprietarioPorEtapa === 'function' ? orquestraProprietarioPorEtapa : null,
+    typeof proprietarioEtapaTriggerKeys_ === 'function' ? proprietarioEtapaTriggerKeys_ : null,
+    typeof proprietarioEtapaOutputKeys_ === 'function' ? proprietarioEtapaOutputKeys_ : null
+  )
+
+  registerWebhookDaviDealAutomation_(
+    e,
+    'calculaTempoEmAndamento',
+    typeof calculaTempoEmAndamento === 'function' ? calculaTempoEmAndamento : null,
+    typeof tempoEmAndamentoTriggerKeys_ === 'function' ? tempoEmAndamentoTriggerKeys_ : null,
+    typeof tempoEmAndamentoOutputKeys_ === 'function' ? tempoEmAndamentoOutputKeys_ : null
+  )
+
+  const hasTempoConclusaoAtual = typeof calculaTempoDeConclusao === 'function'
+  const tempoConclusaoFn =
+    hasTempoConclusaoAtual ? calculaTempoDeConclusao :
+    (typeof calculaTempoConclusao === 'function') ? calculaTempoConclusao :
+    null
+
+  registerWebhookDaviDealAutomation_(
+    e,
+    hasTempoConclusaoAtual ? 'calculaTempoDeConclusao' : 'calculaTempoConclusao',
+    tempoConclusaoFn,
+    typeof tempoConclusaoTriggerKeys_ === 'function' ? tempoConclusaoTriggerKeys_ : null,
+    typeof tempoConclusaoOutputKeys_ === 'function' ? tempoConclusaoOutputKeys_ : null
+  )
+
+  registerWebhookDaviDealAutomation_(
+    e,
+    'sincronizaPlanilhaControle',
+    typeof sincronizaPlanilhaControle === 'function' ? sincronizaPlanilhaControle : null,
+    typeof syncPlanilhaControleTriggerKeys_ === 'function' ? syncPlanilhaControleTriggerKeys_ : null,
+    typeof syncPlanilhaControleOutputKeys_ === 'function' ? syncPlanilhaControleOutputKeys_ : null
+  )
+
+  registerWebhookDaviDealAutomation_(
+    e,
+    'sincronizaAnaliseBasicaLocationWebhook',
+    typeof sincronizaAnaliseBasicaLocationWebhook === 'function' ? sincronizaAnaliseBasicaLocationWebhook : null,
+    typeof analiseBasicaLocationTriggerKeys_ === 'function' ? analiseBasicaLocationTriggerKeys_ : null,
+    typeof analiseBasicaLocationOutputKeys_ === 'function' ? analiseBasicaLocationOutputKeys_ : null
+  )
+}
+
+function registerWebhookDaviDealAutomation_(eventContext, name, automationFn, triggersFn, outputsFn) {
+  if (typeof automationFn !== 'function') return
+
+  const triggers = typeof triggersFn === 'function' ? triggersFn() : []
+  const outputs = typeof outputsFn === 'function' ? outputsFn() : []
+  const events = ['added.deal'].concat(WebhookDavi.Events.updatedDealFields(triggers))
+
+  WebhookDavi.Events.setEvent(eventContext, events, function(data, validate) {
+    return $(automationFn)(data.deal, data.changedKeys, data.options)
+  }, {
+    name: name,
+    triggers: triggers,
+    outputs: outputs
+  })
+}
+
+function registerWebhookDaviDealAutomationAddedOnly_(eventContext, name, automationFn, triggersFn, outputsFn) {
+  if (typeof automationFn !== 'function') return
+
+  const triggers = typeof triggersFn === 'function' ? triggersFn() : []
+  const outputs = typeof outputsFn === 'function' ? outputsFn() : []
+  const events = ['added.deal']
+
+  WebhookDavi.Events.setEvent(eventContext, events, function(data, validate) {
+    return $(automationFn)(data.deal, data.changedKeys, data.options)
+  }, {
+    name: name,
+    triggers: triggers,
+    outputs: outputs,
+    eventOnly: true
+  })
+}
+
+function registerWebhookDaviDealAutomationUpdatedOnly_(eventContext, name, automationFn, triggersFn, outputsFn) {
+  if (typeof automationFn !== 'function') return
+
+  const triggers = typeof triggersFn === 'function' ? triggersFn() : []
+  const outputs = typeof outputsFn === 'function' ? outputsFn() : []
+  const events = WebhookDavi.Events.updatedDealFields(triggers)
+
+  WebhookDavi.Events.setEvent(eventContext, events, function(data, validate) {
+    return $(automationFn)(data.deal, data.changedKeys, data.options)
+  }, {
+    name: name,
+    triggers: triggers,
+    outputs: outputs,
+    eventOnly: true
+  })
+}

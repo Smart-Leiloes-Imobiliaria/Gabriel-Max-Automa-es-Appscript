@@ -1,0 +1,614 @@
+const PAGAMENTO_PARCEIRO_TZ_ = 'America/Sao_Paulo'
+const PAGAMENTO_PARCEIRO_TEST_DEAL_ID_PROP_ = 'PAGAMENTO_PARCEIRO_TEST_DEAL_ID'
+
+const PAGAMENTO_PARCEIRO_FIELDS_ = {
+  codigoImovel: { nome: 'Código do imóvel', key: '5c3aac951d1281021e01c13aa7a11a449efeabd1' },
+  parceiroResponsavel: {
+    nome: 'Parceiro Responsável',
+    key: '97e72d089584c2ea6c63d48cf8574db7c2cd5fe6',
+    options: {
+      605: 'n/a', 807: 'Documentall', 1891: 'POC [Documentall]', 706: 'AL - André',
+      1537: 'RN - Dominique', 1595: 'MG - Rafael', 1644: 'RS - Claudia', 592: 'MG - Camily',
+      1262: 'SP - Fernando', 593: 'SP - Istamir', 1927: 'SP - Oliveira', 595: 'PR - Graziela',
+      599: 'MA - Morgana', 639: 'PB - Pedro', 841: 'GO - Vanessa', 1108: 'RJ - Leticia',
+      1261: 'MG - Mariana', 1509: 'RJ - Stefani', 1974: 'RS - Silvio', 1538: 'CE - Manuela',
+      1539: 'PE - Roberta', 1596: 'PB - Nicoli', 1579: 'PB - Larissa', 1660: 'PB - Melissa',
+      1970: 'GO - Murta', 1588: 'GO - Warlyson', 1662: 'MT - Ozeny', 2090: 'PA - Debora',
+      1587: 'PB - Francisco [Desativado]', 1374: 'MG - Anizio [Desativado]',
+      1835: 'GO - Enderson [Desativado]', 1590: 'PE - Maria [Desativado]',
+      1963: 'RO - Michele [Desativado]', 1658: 'SE - Fabio [Desativado]',
+      1756: 'SC - Tiago [Desativado]', 1535: 'RS - Leonardo [Desativado]',
+      1578: 'BA - Mavia [Desativado]', 2091: 'RJ - Jessica [Desativado]',
+      2092: 'PI - Araujo [Desativado]', 1536: 'RJ - Almeida [Desativado]',
+      1661: 'CE - Nathielly [Desativado]', 1863: 'TO - Crislainne (Desativado)',
+      1645: 'BA - Jackeline (Desativado)', 1663: 'MT - Juliana (Desativado)'
+    }
+  },
+  fimTitularidade: { nome: 'Data término: Titularidade', key: '3022a1c39e2c992e3cb38fe82e0f22ef421cc033' },
+  fimRegistro: { nome: 'Data término: Registro', key: '8e1b76dc0501ad8514f3ac51616746851028840e' },
+  executorItbi: {
+    nome: 'Executor: ITBI',
+    etapa: 'ITBI',
+    key: '90cec4ad4796cbca9a16f4d3626b643cc0e090d9',
+    options: {
+      498: 'Terceiro', 1495: 'Terceiro Substituto', 318: 'Smart',
+      317: 'Cliente (com acompanhamento)', 1492: 'Cliente (sem acompanhamento)',
+      319: 'Cartório Externo', 497: 'Cartório Parceiro (não utilizar)'
+    }
+  },
+  executorContrato: {
+    nome: 'Executor: Contrato',
+    etapa: 'Contrato',
+    key: '1dbb1d3c497001898a92edd0a1799d19485bf26e',
+    options: {
+      412: 'Terceiro', 1494: 'Terceiro Substituto', 359: 'Smart',
+      683: 'Gerente externo (FGTS)', 500: 'Cartório/CCA Externo',
+      2438: 'CCA Smart Caixa', 358: 'Cartório/CCA Parceiro (não utilizar)'
+    }
+  },
+  executorRegistro: {
+    nome: 'Executor: Registro',
+    etapa: 'Registro',
+    key: 'ae3bc94d6a98d3509c6803d2b3b6351927a2f5e2',
+    options: {
+      805: 'Terceiro', 168: 'Smart', 170: 'Cliente com acompanhamento',
+      1493: 'Cliente sem acompanhamento', 169: 'Cartório Externo',
+      499: 'Cartório Parceiro (não utilizar)', 1497: 'Terceiro Substituto'
+    }
+  },
+  executorTitularidade: {
+    nome: 'Executor: Titularidade',
+    etapa: 'Titularidade',
+    key: '03d5b34bd64eb313c521deed73537201ff73951b',
+    options: {
+      1032: 'Terceiro', 1496: 'Terceiro Substituto', 1367: 'Smart',
+      1033: 'Cliente (com acompanhamento)', 1491: 'Cliente (sem acompanhamento)',
+      1034: 'Cartório Externo'
+    }
+  },
+  executorLeiloes: {
+    nome: 'Executor: Leilões',
+    etapa: 'Leilões',
+    key: '64e6592f9d34151579c8c0c137618bac6ebadad4',
+    options: [
+      { id: 407, label: 'CEF' },
+      { id: 408, label: 'Smart' },
+      { id: 803, label: 'Parceiro' },
+      { id: 1498, label: 'Parceiro Substituto' },
+      { id: 1521, label: 'Cliente' }
+    ]
+  },
+  formaPagamento: {
+    nome: 'Forma de Pagamento',
+    key: 'ead65a1f666494607bbbf807aaff5b1123b893df',
+    options: {
+      550: 'À vista e ACIMA de 30 salários mínimos (R$ 48.630)',
+      33: 'À vista e ABAIXO de 30 salários mínimos (R$ 48.630)',
+      34: 'Financiamento/FGTS',
+      190: 'FGTS À vista'
+    }
+  },
+  preenchimentoFormulario: {
+    nome: 'Data Preenchimento: Formulário Arrematantes',
+    key: '758ec614bc1f8ed67513d72745d678a5285c3319'
+  }
+}
+
+function analisarPagamentoParceiro(deal, changedKeys, options) {
+  const fullDeal = pagamentoParceiroLoadDeal_(deal)
+  return pagamentoParceiroAnalisarDeal_(fullDeal, options || {})
+}
+
+function analisarPagamentoParceiroPorId(dealId) {
+  const id = String(dealId || '').trim()
+  if (!id) throw new Error('Informe o ID do negócio/imóvel no Pipedrive.')
+
+  const deal = pagamentoParceiroCallPipedrive_('deals/' + encodeURIComponent(id), 'GET', null)
+  if (!deal || !deal.id) throw new Error('Negócio não encontrado no Pipedrive: ' + id)
+
+  return pagamentoParceiroAnalisarDeal_(deal, { origem: 'manual' })
+}
+
+function testarAnalisePagamentoParceiro(dealId) {
+  const props = PropertiesService.getScriptProperties()
+  const id = String(dealId || props.getProperty(PAGAMENTO_PARCEIRO_TEST_DEAL_ID_PROP_) || '').trim()
+  if (!id) {
+    throw new Error(
+      'Informe o ID no parâmetro dealId ou na Script Property ' +
+      PAGAMENTO_PARCEIRO_TEST_DEAL_ID_PROP_ + '.'
+    )
+  }
+
+  const resultado = analisarPagamentoParceiroPorId(id)
+  Logger.log('Valor total final: ' + pagamentoParceiroFormatMoney_(resultado.valorTotal || 0))
+  return resultado
+}
+
+function pagamentoParceiroAnalisarDeal_(deal, options) {
+  const opts = options || {}
+  const ctx = pagamentoParceiroCreateContext_(deal, opts)
+
+  ctx.codigoImovel = pagamentoParceiroResolveField_(deal, PAGAMENTO_PARCEIRO_FIELDS_.codigoImovel)
+  ctx.parceiroResponsavel = pagamentoParceiroResolveField_(deal, PAGAMENTO_PARCEIRO_FIELDS_.parceiroResponsavel)
+  ctx.logs.push('Parceiro Responsável lido: ' + pagamentoParceiroDisplay_(ctx.parceiroResponsavel))
+
+  if (pagamentoParceiroIsEmptyOrNA_(ctx.parceiroResponsavel)) {
+    return pagamentoParceiroFinish_(ctx, {
+      apto: false,
+      motivoEncerramento: 'Análise encerrada: não há parceiro delegado.'
+    })
+  }
+
+  ctx.dataTerminoTitularidade = pagamentoParceiroParseDate_(
+    pagamentoParceiroGetRawField_(deal, PAGAMENTO_PARCEIRO_FIELDS_.fimTitularidade)
+  )
+  ctx.dataTerminoRegistro = pagamentoParceiroParseDate_(
+    pagamentoParceiroGetRawField_(deal, PAGAMENTO_PARCEIRO_FIELDS_.fimRegistro)
+  )
+  ctx.logs.push('Data término Titularidade lida: ' + pagamentoParceiroFormatDate_(ctx.dataTerminoTitularidade))
+  ctx.logs.push('Data término Registro lida: ' + pagamentoParceiroFormatDate_(ctx.dataTerminoRegistro))
+
+  if (!ctx.dataTerminoTitularidade || !ctx.dataTerminoRegistro) {
+    return pagamentoParceiroFinish_(ctx, {
+      apto: false,
+      motivoEncerramento: 'Análise encerrada: Data término Titularidade ou Data término Registro não preenchida.'
+    })
+  }
+
+  ctx.competenciaPagamento = pagamentoParceiroCalcularCompetencia_(
+    ctx.dataTerminoTitularidade,
+    ctx.dataTerminoRegistro
+  )
+  ctx.logs.push('Competência calculada: ' + ctx.competenciaPagamento.rotulo)
+
+  const executorFields = [
+    PAGAMENTO_PARCEIRO_FIELDS_.executorItbi,
+    PAGAMENTO_PARCEIRO_FIELDS_.executorContrato,
+    PAGAMENTO_PARCEIRO_FIELDS_.executorRegistro,
+    PAGAMENTO_PARCEIRO_FIELDS_.executorTitularidade,
+    PAGAMENTO_PARCEIRO_FIELDS_.executorLeiloes
+  ]
+
+  for (let i = 0; i < executorFields.length; i++) {
+    const field = executorFields[i]
+    const value = pagamentoParceiroResolveField_(deal, field)
+    ctx.executores[field.etapa] = value
+    ctx.logs.push(field.nome.replace('Executor: ', 'Executor ') + ': ' + pagamentoParceiroDisplay_(value))
+
+    if (pagamentoParceiroIsEmptyOrNA_(value)) {
+      return pagamentoParceiroFinish_(ctx, {
+        apto: false,
+        motivoEncerramento: 'Análise encerrada: campo de executor ' + field.nome + ' não preenchido.'
+      })
+    }
+  }
+
+  ctx.formaPagamentoOriginal = pagamentoParceiroResolveField_(deal, PAGAMENTO_PARCEIRO_FIELDS_.formaPagamento)
+  ctx.tipoPagamento = pagamentoParceiroIdentificarTipoPagamento_(ctx.formaPagamentoOriginal)
+  ctx.logs.push('Forma de pagamento original: ' + pagamentoParceiroDisplay_(ctx.formaPagamentoOriginal))
+  ctx.logs.push('Tipo de pagamento identificado: ' + pagamentoParceiroDisplay_(ctx.tipoPagamento))
+
+  ctx.dataPreenchimentoFormulario = pagamentoParceiroParseDate_(
+    pagamentoParceiroGetRawField_(deal, PAGAMENTO_PARCEIRO_FIELDS_.preenchimentoFormulario)
+  )
+  ctx.logs.push(
+    'Data de preenchimento do formulário de arrematantes: ' +
+    pagamentoParceiroFormatDate_(ctx.dataPreenchimentoFormulario)
+  )
+
+  const calculo = pagamentoParceiroCalcularValor_(ctx)
+  ctx.valorTotal = calculo.valorTotal
+  ctx.itensPagamento = calculo.itensPagamento
+  ctx.regraAplicada = calculo.regraAplicada
+
+  return pagamentoParceiroFinish_(ctx, { apto: true })
+}
+
+function pagamentoParceiroCalcularValor_(ctx) {
+  const resultado = {
+    valorTotal: 0,
+    itensPagamento: [],
+    regraAplicada: ''
+  }
+
+  const dataFormulario = ctx.dataPreenchimentoFormulario
+  const marcoInicial = pagamentoParceiroDateOnly_(2026, 3, 2)
+  const marcoFinal = pagamentoParceiroDateOnly_(2026, 3, 26)
+  const formaNorm = pagamentoParceiroNormalize_(ctx.formaPagamentoOriginal)
+  const parceiroNorm = pagamentoParceiroNormalize_(ctx.parceiroResponsavel)
+
+  if (!dataFormulario) {
+    resultado.regraAplicada = 'Data de preenchimento do formulário inválida ou não preenchida. Sem remuneração.'
+    pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, resultado.regraAplicada)
+    return resultado
+  }
+
+  if (dataFormulario.getTime() < marcoInicial.getTime()) {
+    resultado.regraAplicada = 'Regra 1: formulário anterior a 02/03/2026.'
+    if (ctx.tipoPagamento === 'Escritura Pública') {
+      pagamentoParceiroApplyTable_(ctx, resultado, { 'Leilões': 100 })
+    } else if (ctx.tipoPagamento === 'CCV / Contrato de Compra e Venda') {
+      pagamentoParceiroApplyTable_(ctx, resultado, {
+        ITBI: 100, Contrato: 125, Registro: 150, Titularidade: 150, 'Leilões': 75
+      })
+    } else if (ctx.tipoPagamento === 'Financiamento') {
+      pagamentoParceiroApplyTable_(ctx, resultado, {
+        ITBI: 150, Registro: 150, Titularidade: 100, 'Leilões': 75
+      })
+    } else {
+      pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, 'Tipo de pagamento sem regra remuneratória nesta faixa.')
+    }
+    return resultado
+  }
+
+  if (
+    dataFormulario.getTime() >= marcoInicial.getTime() &&
+    dataFormulario.getTime() <= marcoFinal.getTime() &&
+    formaNorm === pagamentoParceiroNormalize_('À vista e ACIMA de 30 salários mínimos (R$ 48.630)')
+  ) {
+    resultado.regraAplicada = 'Regra aplicada: formulário entre 02/03/2026 e 26/03/2026 para Escritura Pública. Parceiro não remunerado.'
+    pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, resultado.regraAplicada)
+    return resultado
+  }
+
+  if (dataFormulario.getTime() > marcoFinal.getTime()) {
+    if (['pr - graziela', 'go - murta', 'al - andre'].indexOf(parceiroNorm) >= 0) {
+      resultado.regraAplicada = 'Regra 3: formulário após 26/03/2026 para Graziela, Murta ou André.'
+      if (ctx.tipoPagamento === 'Escritura Pública') {
+        pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, 'Escritura Pública sem remuneração para este grupo.')
+      } else if (ctx.tipoPagamento === 'CCV / Contrato de Compra e Venda' || ctx.tipoPagamento === 'Financiamento') {
+        pagamentoParceiroApplyTable_(ctx, resultado, { ITBI: 100, Registro: 150, Titularidade: 150 })
+      } else {
+        pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, 'Tipo de pagamento sem regra remuneratória para este grupo.')
+      }
+      return resultado
+    }
+
+    if (['mg - mariana', 'ce - manuela', 'pe - roberta'].indexOf(parceiroNorm) >= 0) {
+      resultado.regraAplicada = 'Regra 4: formulário após 26/03/2026 para Mariana, Manuela ou Roberta.'
+      if (ctx.tipoPagamento === 'Escritura Pública') {
+        pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, 'Escritura Pública sem remuneração para este grupo.')
+      } else if (ctx.tipoPagamento === 'CCV / Contrato de Compra e Venda') {
+        pagamentoParceiroApplyTable_(ctx, resultado, { ITBI: 125, Registro: 200, Titularidade: 200 })
+      } else if (ctx.tipoPagamento === 'Financiamento') {
+        pagamentoParceiroApplyTable_(ctx, resultado, { ITBI: 100, Registro: 200, Titularidade: 200 })
+      } else {
+        pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, 'Tipo de pagamento sem regra remuneratória para este grupo.')
+      }
+      return resultado
+    }
+
+    if (parceiroNorm === 'sp - istamir') {
+      resultado.regraAplicada = 'Regra aplicada: parceiro Istamir após 26/03/2026. Sem remuneração.'
+      pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, resultado.regraAplicada)
+      return resultado
+    }
+
+    resultado.regraAplicada = 'Regra aplicada: demais parceiros após 26/03/2026. Sem remuneração.'
+    pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, resultado.regraAplicada)
+    return resultado
+  }
+
+  resultado.regraAplicada = 'Nenhuma regra de pagamento aplicável. Sem remuneração.'
+  pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, resultado.regraAplicada)
+  return resultado
+}
+
+function pagamentoParceiroApplyTable_(ctx, resultado, tabela) {
+  const etapas = ['ITBI', 'Contrato', 'Registro', 'Titularidade', 'Leilões']
+  for (let i = 0; i < etapas.length; i++) {
+    const etapa = etapas[i]
+    if (!Object.prototype.hasOwnProperty.call(tabela, etapa)) continue
+
+    const executor = ctx.executores[etapa]
+    const valor = Number(tabela[etapa] || 0)
+    if (pagamentoParceiroExecutorEhParceiro_(executor)) {
+      resultado.valorTotal += valor
+      resultado.itensPagamento.push({
+        etapa: etapa,
+        executor: executor,
+        valor: valor,
+        valorFormatado: pagamentoParceiroFormatMoney_(valor),
+        motivo: 'Executor identificado como Parceiro na etapa ' + etapa + '.'
+      })
+    } else {
+      resultado.itensPagamento.push({
+        etapa: etapa,
+        executor: executor,
+        valor: 0,
+        valorFormatado: pagamentoParceiroFormatMoney_(0),
+        motivo: 'Etapa não remunerada: executor não é Parceiro.'
+      })
+    }
+  }
+}
+
+function pagamentoParceiroAdicionarNaoRemunerados_(ctx, resultado, motivo) {
+  const etapas = ['ITBI', 'Contrato', 'Registro', 'Titularidade', 'Leilões']
+  for (let i = 0; i < etapas.length; i++) {
+    const etapa = etapas[i]
+    resultado.itensPagamento.push({
+      etapa: etapa,
+      executor: ctx.executores[etapa] || '',
+      valor: 0,
+      valorFormatado: pagamentoParceiroFormatMoney_(0),
+      motivo: motivo
+    })
+  }
+}
+
+function pagamentoParceiroFinish_(ctx, finalPatch) {
+  const result = {
+    apto: !!finalPatch.apto,
+    motivoEncerramento: finalPatch.motivoEncerramento || '',
+    dealId: ctx.dealId,
+    codigoImovel: ctx.codigoImovel || '',
+    parceiroResponsavel: ctx.parceiroResponsavel || '',
+    dataTerminoTitularidade: pagamentoParceiroFormatDate_(ctx.dataTerminoTitularidade),
+    dataTerminoRegistro: pagamentoParceiroFormatDate_(ctx.dataTerminoRegistro),
+    competenciaPagamento: ctx.competenciaPagamento ? ctx.competenciaPagamento.rotulo : '',
+    competenciaPagamentoData: ctx.competenciaPagamento ? ctx.competenciaPagamento.data : '',
+    executores: ctx.executores,
+    formaPagamentoOriginal: ctx.formaPagamentoOriginal || '',
+    tipoPagamento: ctx.tipoPagamento || '',
+    dataPreenchimentoFormulario: pagamentoParceiroFormatDate_(ctx.dataPreenchimentoFormulario),
+    regraAplicada: ctx.regraAplicada || '',
+    itensPagamento: ctx.itensPagamento || [],
+    valorTotal: ctx.valorTotal || 0,
+    valorTotalFormatado: pagamentoParceiroFormatMoney_(ctx.valorTotal || 0)
+  }
+
+  pagamentoParceiroLogResultado_(ctx, result)
+  return result
+}
+
+function pagamentoParceiroLogResultado_(ctx, result) {
+  const lines = []
+  lines.push('========== ANÁLISE PAGAMENTO PARCEIRO ==========')
+  lines.push('ID do imóvel analisado: ' + pagamentoParceiroDisplay_(result.dealId))
+  lines.push('Código do imóvel: ' + pagamentoParceiroDisplay_(result.codigoImovel))
+  lines.push('Parceiro Responsável lido: ' + pagamentoParceiroDisplay_(result.parceiroResponsavel))
+  lines.push('Data término Titularidade: ' + pagamentoParceiroDisplay_(result.dataTerminoTitularidade))
+  lines.push('Data término Registro: ' + pagamentoParceiroDisplay_(result.dataTerminoRegistro))
+  lines.push('Competência de pagamento calculada: ' + pagamentoParceiroDisplay_(result.competenciaPagamento))
+  lines.push('Executor ITBI: ' + pagamentoParceiroDisplay_(result.executores.ITBI))
+  lines.push('Executor Contrato: ' + pagamentoParceiroDisplay_(result.executores.Contrato))
+  lines.push('Executor Registro: ' + pagamentoParceiroDisplay_(result.executores.Registro))
+  lines.push('Executor Titularidade: ' + pagamentoParceiroDisplay_(result.executores.Titularidade))
+  lines.push('Executor Leilões: ' + pagamentoParceiroDisplay_(result.executores['Leilões']))
+  lines.push('Forma de pagamento original: ' + pagamentoParceiroDisplay_(result.formaPagamentoOriginal))
+  lines.push('Tipo de pagamento identificado: ' + pagamentoParceiroDisplay_(result.tipoPagamento))
+  lines.push('Data de preenchimento do formulário de arrematantes: ' + pagamentoParceiroDisplay_(result.dataPreenchimentoFormulario))
+  lines.push('Regra de pagamento aplicada: ' + pagamentoParceiroDisplay_(result.regraAplicada))
+
+  if (result.motivoEncerramento) lines.push(result.motivoEncerramento)
+  for (let i = 0; i < ctx.logs.length; i++) lines.push(ctx.logs[i])
+
+  lines.push('Itens remunerados / etapas não remuneradas:')
+  if (result.itensPagamento.length) {
+    for (let j = 0; j < result.itensPagamento.length; j++) {
+      const item = result.itensPagamento[j]
+      lines.push(
+        '- ' + item.etapa +
+        ' | Executor: ' + pagamentoParceiroDisplay_(item.executor) +
+        ' | Valor: ' + item.valorFormatado +
+        ' | Motivo: ' + item.motivo
+      )
+    }
+  } else {
+    lines.push('- Nenhum item calculado.')
+  }
+
+  lines.push('Valor total calculado: ' + result.valorTotalFormatado)
+  lines.push('=================================================')
+  Logger.log(lines.join('\n'))
+}
+
+function pagamentoParceiroCreateContext_(deal, options) {
+  return {
+    deal: deal,
+    options: options || {},
+    dealId: String(deal && deal.id != null ? deal.id : '').trim(),
+    codigoImovel: '',
+    parceiroResponsavel: '',
+    dataTerminoTitularidade: null,
+    dataTerminoRegistro: null,
+    competenciaPagamento: null,
+    executores: {},
+    formaPagamentoOriginal: '',
+    tipoPagamento: '',
+    dataPreenchimentoFormulario: null,
+    regraAplicada: '',
+    itensPagamento: [],
+    valorTotal: 0,
+    logs: []
+  }
+}
+
+function pagamentoParceiroLoadDeal_(deal) {
+  if (!deal || typeof deal !== 'object') throw new Error('Deal vazio em analisarPagamentoParceiro.')
+  const id = String(deal.id || '').trim()
+  if (!id) return deal
+
+  try {
+    const fullDeal = pagamentoParceiroCallPipedrive_('deals/' + encodeURIComponent(id), 'GET', null)
+    return fullDeal && fullDeal.id ? fullDeal : deal
+  } catch (err) {
+    Logger.log('Aviso: falha ao buscar deal completo no Pipedrive. Usando payload recebido. Erro: ' + String(err && err.message ? err.message : err))
+    return deal
+  }
+}
+
+function pagamentoParceiroResolveField_(deal, field) {
+  const value = pagamentoParceiroGetRawField_(deal, field)
+  if (value === null || value === undefined || value === '') return ''
+
+  if (Array.isArray(value)) {
+    return value.map(function (item) {
+      return pagamentoParceiroResolveOptionValue_(item, field)
+    }).filter(Boolean).join(', ')
+  }
+
+  return pagamentoParceiroResolveOptionValue_(value, field)
+}
+
+function pagamentoParceiroResolveOptionValue_(value, field) {
+  if (value === null || value === undefined || value === '') return ''
+  if (typeof value === 'object') {
+    if (value.label) return String(value.label)
+    if (value.name) return String(value.name)
+    if (value.value) return String(value.value)
+    if (value.id != null) return pagamentoParceiroOptionLabel_(field, value.id)
+  }
+  return pagamentoParceiroOptionLabel_(field, value)
+}
+
+function pagamentoParceiroOptionLabel_(field, value) {
+  const text = String(value == null ? '' : value).trim()
+  if (!text) return ''
+  const options = field && field.options ? field.options : null
+  if (!options) return text
+
+  if (Array.isArray(options)) {
+    for (let i = 0; i < options.length; i++) {
+      if (String(options[i].id) === text) return String(options[i].label || options[i].name || text)
+    }
+    return text
+  }
+
+  return Object.prototype.hasOwnProperty.call(options, text) ? String(options[text]) : text
+}
+
+function pagamentoParceiroGetRawField_(deal, field) {
+  if (!deal || !field || !field.key) return null
+  if (Object.prototype.hasOwnProperty.call(deal, field.key)) return deal[field.key]
+  if (deal.custom_fields && Object.prototype.hasOwnProperty.call(deal.custom_fields, field.key)) {
+    return deal.custom_fields[field.key]
+  }
+  return null
+}
+
+function pagamentoParceiroIdentificarTipoPagamento_(formaPagamento) {
+  const norm = pagamentoParceiroNormalize_(formaPagamento)
+  if (norm === pagamentoParceiroNormalize_('À vista e ACIMA de 30 salários mínimos (R$ 48.630)')) return 'Escritura Pública'
+  if (norm === pagamentoParceiroNormalize_('À vista e ABAIXO de 30 salários mínimos (R$ 48.630)')) return 'CCV / Contrato de Compra e Venda'
+  if (norm === pagamentoParceiroNormalize_('Financiamento/FGTS')) return 'Financiamento'
+  if (norm === pagamentoParceiroNormalize_('FGTS À vista')) return 'FGTS'
+  return ''
+}
+
+function pagamentoParceiroExecutorEhParceiro_(executor) {
+  const norm = pagamentoParceiroNormalize_(executor)
+  return norm === 'parceiro' ||
+    norm.indexOf('parceiro') >= 0 ||
+    norm === 'terceiro' ||
+    norm === 'terceiro substituto'
+}
+
+function pagamentoParceiroCalcularCompetencia_(dataTitularidade, dataRegistro) {
+  const now = new Date()
+  const year = Number(Utilities.formatDate(now, PAGAMENTO_PARCEIRO_TZ_, 'yyyy'))
+  const month = Number(Utilities.formatDate(now, PAGAMENTO_PARCEIRO_TZ_, 'M'))
+  const limite = pagamentoParceiroDateOnly_(year, month, 23)
+  const atual = dataTitularidade.getTime() <= limite.getTime() && dataRegistro.getTime() <= limite.getTime()
+  const ref = atual ? pagamentoParceiroDateOnly_(year, month, 1) : pagamentoParceiroDateOnly_(year, month + 1, 1)
+
+  return {
+    tipo: atual ? 'mes_atual' : 'mes_seguinte',
+    rotulo: atual ? 'mês atual' : 'mês seguinte',
+    data: Utilities.formatDate(ref, PAGAMENTO_PARCEIRO_TZ_, 'MM/yyyy')
+  }
+}
+
+function pagamentoParceiroParseDate_(value) {
+  if (value === null || value === undefined || value === '') return null
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return pagamentoParceiroDateOnly_(value.getFullYear(), value.getMonth() + 1, value.getDate())
+  }
+
+  const text = String(value).trim()
+  if (!text) return null
+
+  let match = text.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) return pagamentoParceiroDateOnly_(Number(match[1]), Number(match[2]), Number(match[3]))
+
+  match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (match) return pagamentoParceiroDateOnly_(Number(match[3]), Number(match[2]), Number(match[1]))
+
+  const parsed = new Date(text)
+  if (isNaN(parsed.getTime())) return null
+  return pagamentoParceiroDateOnly_(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate())
+}
+
+function pagamentoParceiroDateOnly_(year, month, day) {
+  return new Date(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0)
+}
+
+function pagamentoParceiroFormatDate_(date) {
+  if (!date || isNaN(date.getTime())) return ''
+  return Utilities.formatDate(date, PAGAMENTO_PARCEIRO_TZ_, 'dd/MM/yyyy')
+}
+
+function pagamentoParceiroFormatMoney_(value) {
+  const n = Number(value || 0)
+  return 'R$ ' + n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+function pagamentoParceiroIsEmptyOrNA_(value) {
+  const norm = pagamentoParceiroNormalize_(value)
+  return !norm || norm === 'n/a' || norm === 'na'
+}
+
+function pagamentoParceiroNormalize_(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function pagamentoParceiroDisplay_(value) {
+  const text = String(value == null ? '' : value).trim()
+  return text || '(vazio)'
+}
+
+function pagamentoParceiroCallPipedrive_(endpoint, method, payload) {
+  if (typeof callPipedrive === 'function') return callPipedrive(endpoint, method || 'GET', payload || null)
+
+  const props = PropertiesService.getScriptProperties()
+  const token = String(
+    props.getProperty('PD_API_KEY') ||
+    props.getProperty('PIPEDRIVE_TOKEN') ||
+    props.getProperty('PIPEDRIVE_API_TOKEN') ||
+    ''
+  ).trim()
+  if (!token) throw new Error('API Key do Pipedrive ausente. Configure PD_API_KEY ou PIPEDRIVE_TOKEN.')
+
+  let base = String(props.getProperty('PD_BASE_URL') || props.getProperty('PIPEDRIVE_BASE_URL') || 'https://api.pipedrive.com/v1')
+    .trim()
+    .replace(/\/+$/, '')
+  if (base.match(/\.pipedrive\.com\/v1$/i)) base = base.replace(/\/v1$/i, '/api/v1')
+
+  const path = String(endpoint || '').replace(/^\/+/, '')
+  const sep = path.indexOf('?') >= 0 ? '&' : '?'
+  const url = base + '/' + path + sep + 'api_token=' + encodeURIComponent(token)
+  const opts = {
+    method: String(method || 'GET').toUpperCase(),
+    muteHttpExceptions: true,
+    contentType: 'application/json'
+  }
+  if (payload) opts.payload = JSON.stringify(payload)
+
+  const response = UrlFetchApp.fetch(url, opts)
+  const status = response.getResponseCode()
+  const body = response.getContentText()
+  let json = null
+  try { json = JSON.parse(body) } catch (_) {}
+
+  if (status < 200 || status >= 300 || (json && json.success === false)) {
+    throw new Error('Erro Pipedrive ' + status + ': ' + body)
+  }
+
+  return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json
+}

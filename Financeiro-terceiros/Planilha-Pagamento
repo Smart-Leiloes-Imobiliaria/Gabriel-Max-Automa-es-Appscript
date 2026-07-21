@@ -1,0 +1,957 @@
+const PLANILHA_PAG_DEFAULT_FILTER_ID_ = 35331
+const PLANILHA_PAG_DEFAULT_LIMIT_ = 500
+const PLANILHA_PAG_START_COLUMN_ = 2
+const PLANILHA_PAG_TOTAL_COLUMNS_ = 19
+const PLANILHA_PAG_EXTRACT_COLUMNS_ = 12
+const PLANILHA_PAG_TOTAL_COLUMN_ = 19
+const PLANILHA_PAG_DEAL_ID_COLUMN_ = 20
+const PLANILHA_PAG_DUPLICATE_AUXILIARY_COLUMN_ = PLANILHA_PAG_START_COLUMN_ + PLANILHA_PAG_EXTRACT_COLUMNS_
+const PLANILHA_PAG_UPDATE_BATCH_SIZE_ = 50
+const PLANILHA_PAG_UPDATE_BATCH_SLEEP_MS_ = 2000
+const PLANILHA_PAG_PAYMENT_FIELD_KEY_ = 'd1dcf6df609d2f351e88be11ca985ba86b0a03cc'
+const PLANILHA_PAG_LOG_SHEET_NAME_ = 'Planilha-Pag Logs'
+const PLANILHA_PAG_SEND_SUMMARY_SHEET_NAME_ = 'Planilha-Pag Log Envios'
+const PLANILHA_PAG_LAST_EXPORT_ROWS_PROP_ = 'PLANILHA_PAG_LAST_EXPORT_ROWS'
+const PLANILHA_PAG_DEFAULT_SHEET_NAME_ = 'Página1'
+const PLANILHA_PAG_SHEET_NAME_PROP_ = 'PLANILHA_PAG_SHEET_NAME'
+const PLANILHA_PAG_SPREADSHEET_ID_PROP_ = 'PLANILHA_PAG_SPREADSHEET_ID'
+const PLANILHA_PAG_FILTER_ID_PROP_ = 'PLANILHA_PAG_FILTER_ID'
+const PLANILHA_PAG_PAYMENT_FIELD_KEY_PROP_ = 'PLANILHA_PAG_PAYMENT_FIELD_KEY'
+
+const PLANILHA_PAG_HEADERS_ = [
+  'Título',
+  'Número do imóvel',
+  'Data preenchimento formulário',
+  'Parceiro responsável',
+  'Data término registro',
+  'Data término titularidade',
+  'Executor registro',
+  'Executor titularidade',
+  'Executor contrato',
+  'Executor ITBI',
+  'Tipo de pagamento',
+  'Docs leilão junto c/ protocolo registro?',
+  'Auxiliar 2',
+  'Auxiliar 3',
+  'Auxiliar 4',
+  'Auxiliar 5',
+  'Auxiliar 6',
+  'TOTAL',
+  'ID'
+]
+
+const PLANILHA_PAG_FIELDS_ = {
+  titulo: { nome: 'Título', aliases: ['title', 'titulo'] },
+  numeroImovel: { nome: 'Número do imóvel', aliases: ['Numero do imovel', 'Código do imóvel', 'Codigo do imovel'] },
+  dataPreenchimentoFormulario: { nome: 'Data preenchimento formulário', aliases: ['Data Preenchimento: Formulário Arrematantes', 'Data preenchimento formulario'] },
+  parceiroResponsavel: { nome: 'Parceiro responsável', aliases: ['Parceiro Responsável', 'Parceiro responsavel'] },
+  dataTerminoRegistro: { nome: 'Data término registro', aliases: ['Data término: Registro', 'Data termino registro'] },
+  dataTerminoTitularidade: { nome: 'Data término titularidade', aliases: ['Data término: Titularidade', 'Data termino titularidade'] },
+  executorRegistro: { nome: 'Executor registro', aliases: ['Executor: Registro'] },
+  executorTitularidade: { nome: 'Executor titularidade', aliases: ['Executor: Titularidade'] },
+  executorContrato: { nome: 'Executor contrato', aliases: ['Executor: Contrato'] },
+  executorItbi: { nome: 'Executor ITBI', aliases: ['Executor: ITBI'] },
+  tipoPagamento: { nome: 'Tipo de pagamento', aliases: ['Tipo pagamento', 'Forma de Pagamento', 'Forma de pagamento'] },
+  docsLeilaoProtocolo: { nome: 'Docs leilão junto c/ protocolo registro?', aliases: ['Docs leilao junto c/ protocolo registro?'] }
+}
+
+function exportarFiltroPipedriveParaPlanilha(filterId) {
+  const resolvedFilterId = Number(filterId || planilhaPagGetDefaultFilterId_())
+  const startedAt = new Date()
+  Logger.log('[Planilha-Pag] Início da execução. filter_id=' + resolvedFilterId)
+
+  try {
+    const filtro = obterFiltroPipedrive(resolvedFilterId)
+    planilhaPagLogFiltro_(filtro)
+
+    const dados = buscarFiltroPipedrive(resolvedFilterId)
+    Logger.log('[Planilha-Pag] Quantidade de registros encontrados: ' + dados.length)
+    if (dados.length) {
+      Logger.log('[Planilha-Pag] Primeiro registro: id=' + planilhaPagExtrairDealId_(dados[0]))
+    }
+
+    const indiceCampos = buscarIndiceCamposPipedrive()
+    const dadosMapeados = mapearDadosPipedrive(dados, indiceCampos)
+    const dadosRelacionados = relacionarUsuarios(dadosMapeados)
+    const values = montarValuesSheets(dadosRelacionados)
+
+    Logger.log('[Planilha-Pag] Campos mapeados: ' + PLANILHA_PAG_HEADERS_.join(' | '))
+    Logger.log('[Planilha-Pag] Quantidade de linhas geradas: ' + values.length)
+
+    escreverNaPlanilha(values)
+
+    Logger.log('[Planilha-Pag] Execução finalizada em ms: ' + (new Date().getTime() - startedAt.getTime()))
+    return values
+  } catch (err) {
+    Logger.log('[Planilha-Pag] Erro na execução: ' + planilhaPagErro_(err))
+    throw err
+  }
+}
+
+function exportarFiltro35331ParaPlanilha() {
+  return exportarFiltroPipedriveParaPlanilha(planilhaPagGetDefaultFilterId_())
+}
+
+function extrairImoveisPagamentoParceirosAutomatico() {
+  Logger.log('[Planilha-Pag] Início da extração automática.')
+  return exportarFiltroPipedriveParaPlanilha(planilhaPagGetDefaultFilterId_())
+}
+
+function instalarGatilhosPlanilhaPagamento() {
+  planilhaPagRemoverTriggersPorHandler_('extrairImoveisPagamentoParceirosAutomatico')
+  planilhaPagRemoverTriggersPorHandler_('enviarValoresPagamentoMensalParceirosParaPipedrive')
+
+  planilhaPagCriarTriggerSemanal_('extrairImoveisPagamentoParceirosAutomatico', ScriptApp.WeekDay.MONDAY, 8)
+  planilhaPagCriarTriggerSemanal_('extrairImoveisPagamentoParceirosAutomatico', ScriptApp.WeekDay.FRIDAY, 8)
+
+  Logger.log('[Planilha-Pag] Gatilhos instalados: extração segunda/sexta 08:00.')
+  return {
+    funcoes: ['extrairImoveisPagamentoParceirosAutomatico'],
+    gatilhosCriados: [
+      { funcao: 'extrairImoveisPagamentoParceirosAutomatico', dia: 'segunda-feira', hora: '08:00' },
+      { funcao: 'extrairImoveisPagamentoParceirosAutomatico', dia: 'sexta-feira', hora: '08:00' }
+    ]
+  }
+}
+
+function logConfigPlanilhaPagamentoScriptProperties() {
+  const payload = {
+    PLANILHA_PAG_FILTER_ID: String(planilhaPagGetDefaultFilterId_()),
+    PLANILHA_PAG_PAYMENT_FIELD_KEY: String(planilhaPagGetPaymentFieldKey_())
+  }
+  Logger.log('[Planilha-Pag] Script Properties sugeridas: ' + JSON.stringify(payload))
+  return payload
+}
+
+function enviarValoresPagamentoMensalParceirosParaPipedrive() {
+  const startedAt = new Date()
+  const sheet = planilhaPagGetSheet_()
+  const lastRow = sheet.getLastRow()
+  const totalLinhas = Math.max(lastRow - 1, 0)
+  const resumo = planilhaPagCriarResumoEnvio_(totalLinhas)
+
+  Logger.log('[Planilha-Pag] Início do envio ao Pipedrive.')
+  Logger.log('[Planilha-Pag] Linhas analisadas: ' + totalLinhas)
+
+  if (lastRow < 2) {
+    Logger.log('[Planilha-Pag] Nenhuma linha de dados encontrada para envio.')
+    planilhaPagRegistrarResumoEnvio_(startedAt, resumo)
+    return resumo
+  }
+
+  const logSheet = planilhaPagGetLogSheet_()
+  const sucessosAnteriores = planilhaPagCarregarUltimosSucessos_(logSheet)
+  const linhas = sheet.getRange(2, PLANILHA_PAG_TOTAL_COLUMN_, totalLinhas, 2).getValues()
+  const pendentes = []
+  const valoresJaAgendados = {}
+
+  linhas.forEach(function (rowValues, index) {
+    const linha = index + 2
+    const valorRaw = rowValues[0]
+    const dealId = planilhaPagLimparValor_(rowValues[1])
+    const valor = planilhaPagParseValorMonetario_(valorRaw)
+
+    if (!dealId) {
+      planilhaPagRegistrarIgnorado_(resumo, linha, dealId, valorRaw, 'ID vazio na coluna T.')
+      return
+    }
+
+    if (!valor || valor <= 0) {
+      planilhaPagRegistrarIgnorado_(resumo, linha, dealId, valorRaw, 'TOTAL vazio, inválido ou zero na coluna S.')
+      return
+    }
+
+    if (
+      sucessosAnteriores[dealId] &&
+      planilhaPagValoresIguais_(sucessosAnteriores[dealId].valorEnviado, valor)
+    ) {
+      planilhaPagRegistrarIgnorado_(
+        resumo,
+        linha,
+        dealId,
+        valor,
+        'Já atualizado com sucesso anteriormente com o mesmo valor.'
+      )
+      return
+    }
+
+    if (
+      valoresJaAgendados[dealId] !== undefined &&
+      planilhaPagValoresIguais_(valoresJaAgendados[dealId], valor)
+    ) {
+      planilhaPagRegistrarIgnorado_(
+        resumo,
+        linha,
+        dealId,
+        valor,
+        'Duplicado na execução atual com o mesmo ID e valor.'
+      )
+      return
+    }
+
+    resumo.elegiveis++
+    valoresJaAgendados[dealId] = valor
+    pendentes.push({ linha: linha, dealId: dealId, valorEnviado: valor })
+  })
+
+  const primeiraRodada = planilhaPagProcessarAtualizacoes_(pendentes, false, logSheet, resumo)
+  if (primeiraRodada.erros.length) {
+    Logger.log('[Planilha-Pag] Iniciando retentativa para erros: ' + primeiraRodada.erros.length)
+    planilhaPagProcessarAtualizacoes_(primeiraRodada.erros, true, logSheet, resumo)
+  }
+
+  resumo.duracaoMs = new Date().getTime() - startedAt.getTime()
+  planilhaPagRegistrarResumoEnvio_(startedAt, resumo)
+  Logger.log('[Planilha-Pag] Resumo final envio: ' + JSON.stringify(resumo))
+  return resumo
+}
+
+function testarEnvioPagamentoMensalParceiroLinha(linha) {
+  const startedAt = new Date()
+  const numeroLinha = Number(linha || 0)
+  if (!numeroLinha || numeroLinha < 2) throw new Error('Informe uma linha válida maior ou igual a 2.')
+
+  const sheet = planilhaPagGetSheet_()
+  const values = sheet.getRange(numeroLinha, PLANILHA_PAG_TOTAL_COLUMN_, 1, 2).getValues()[0]
+  const valor = planilhaPagParseValorMonetario_(values[0])
+  const dealId = planilhaPagLimparValor_(values[1])
+  const resultado = {
+    linha: numeroLinha,
+    dealId: dealId,
+    valorEnviado: valor || 0,
+    sucesso: false,
+    erro: ''
+  }
+
+  if (!dealId) {
+    resultado.erro = 'ID vazio na coluna T.'
+    planilhaPagRegistrarLogEnvio_(planilhaPagGetLogSheet_(), resultado, 'erro', false, resultado.erro)
+    planilhaPagRegistrarResumoEnvio_(startedAt, planilhaPagCriarResumoTesteEnvio_(resultado))
+    return resultado
+  }
+
+  if (!valor || valor <= 0) {
+    resultado.erro = 'TOTAL vazio, inválido ou zero na coluna S.'
+    planilhaPagRegistrarLogEnvio_(planilhaPagGetLogSheet_(), resultado, 'erro', false, resultado.erro)
+    planilhaPagRegistrarResumoEnvio_(startedAt, planilhaPagCriarResumoTesteEnvio_(resultado))
+    return resultado
+  }
+
+  try {
+    planilhaPagAtualizarValorDeal_(dealId, valor)
+    resultado.sucesso = true
+    planilhaPagRegistrarLogEnvio_(planilhaPagGetLogSheet_(), resultado, 'sucesso', false, '')
+  } catch (err) {
+    resultado.erro = planilhaPagErro_(err)
+    planilhaPagRegistrarLogEnvio_(planilhaPagGetLogSheet_(), resultado, 'erro', false, resultado.erro)
+  }
+
+  planilhaPagRegistrarResumoEnvio_(startedAt, planilhaPagCriarResumoTesteEnvio_(resultado))
+  Logger.log('[Planilha-Pag] Resultado teste linha ' + numeroLinha + ': ' + JSON.stringify(resultado))
+  return resultado
+}
+
+function testarEnvioPagamentoMensalParceiroLinhaManual() {
+  const linhaParaTeste = 10
+  return testarEnvioPagamentoMensalParceiroLinha(linhaParaTeste)
+}
+
+function planilhaPagCriarResumoEnvio_(totalLinhas) {
+  return {
+    totalLinhasAnalisadas: totalLinhas,
+    elegiveis: 0,
+    atualizados: 0,
+    ignorados: 0,
+    erros: 0,
+    idsEnviados: [],
+    valoresEnviados: [],
+    naoAtualizados: [],
+    primeiraTentativa: { sucesso: 0, erro: 0 },
+    retentativa: { sucesso: 0, erro: 0 },
+    duracaoMs: 0
+  }
+}
+
+function planilhaPagCriarResumoTesteEnvio_(resultado) {
+  return {
+    atualizados: resultado && resultado.sucesso ? 1 : 0
+  }
+}
+
+function planilhaPagProcessarAtualizacoes_(itens, retentativa, logSheet, resumo) {
+  const erros = []
+  const lista = Array.isArray(itens) ? itens : []
+
+  for (let i = 0; i < lista.length; i++) {
+    const item = lista[i]
+    try {
+      planilhaPagAtualizarValorDeal_(item.dealId, item.valorEnviado)
+      resumo.atualizados++
+      resumo.idsEnviados.push(item.dealId)
+      resumo.valoresEnviados.push(item.valorEnviado)
+      if (retentativa) resumo.retentativa.sucesso++
+      else resumo.primeiraTentativa.sucesso++
+
+      if (logSheet) {
+        planilhaPagRegistrarLogEnvio_(logSheet, item, 'sucesso', retentativa, '')
+      }
+      Logger.log(
+        '[Planilha-Pag] Atualizado: linha=' + item.linha +
+        ' | dealId=' + item.dealId +
+        ' | valor=' + item.valorEnviado +
+        ' | retentativa=' + retentativa
+      )
+    } catch (err) {
+      const erro = planilhaPagErro_(err)
+      const erroItem = {
+        linha: item.linha,
+        dealId: item.dealId,
+        valorEnviado: item.valorEnviado,
+        erro: erro
+      }
+      erros.push(erroItem)
+
+      if (retentativa) {
+        resumo.erros++
+        resumo.retentativa.erro++
+        resumo.naoAtualizados.push({
+          linha: item.linha,
+          dealId: item.dealId,
+          valorEnviado: item.valorEnviado,
+          motivo: 'Retentativa falhou: ' + erro
+        })
+      } else {
+        resumo.primeiraTentativa.erro++
+      }
+
+      if (logSheet) {
+        planilhaPagRegistrarLogEnvio_(logSheet, erroItem, 'erro', retentativa, erro)
+      }
+      Logger.log(
+        '[Planilha-Pag] Erro ao atualizar: linha=' + item.linha +
+        ' | dealId=' + item.dealId +
+        ' | valor=' + item.valorEnviado +
+        ' | retentativa=' + retentativa +
+        ' | erro=' + erro
+      )
+    }
+
+    if ((i + 1) % PLANILHA_PAG_UPDATE_BATCH_SIZE_ === 0 && i + 1 < lista.length) {
+      Logger.log('[Planilha-Pag] Lote de ' + PLANILHA_PAG_UPDATE_BATCH_SIZE_ + ' concluído. Pausa de 2 segundos.')
+      Utilities.sleep(PLANILHA_PAG_UPDATE_BATCH_SLEEP_MS_)
+    }
+  }
+
+  return { erros: erros }
+}
+
+function planilhaPagAtualizarValorDeal_(dealId, valorTotal) {
+  const paymentFieldKey = planilhaPagGetPaymentFieldKey_()
+  const payload = {}
+  payload[paymentFieldKey] = valorTotal
+  return planilhaPagCallPipedrive_('deals/' + encodeURIComponent(String(dealId)), 'PUT', payload)
+}
+
+function planilhaPagRegistrarIgnorado_(resumo, linha, dealId, valor, motivo) {
+  resumo.ignorados++
+  resumo.naoAtualizados.push({
+    linha: linha,
+    dealId: dealId || '',
+    valorEnviado: valor,
+    motivo: motivo
+  })
+  Logger.log(
+    '[Planilha-Pag] Linha ignorada: linha=' + linha +
+    ' | dealId=' + String(dealId || '') +
+    ' | valor=' + String(valor == null ? '' : valor) +
+    ' | motivo=' + motivo
+  )
+}
+
+function planilhaPagGetLogSheet_() {
+  const ss = planilhaPagGetSpreadsheet_()
+  const sheet = ss.getSheetByName(PLANILHA_PAG_LOG_SHEET_NAME_) || ss.insertSheet(PLANILHA_PAG_LOG_SHEET_NAME_)
+  const headers = ['Data/hora', 'Linha', 'ID do imóvel', 'Valor enviado', 'Status', 'Retentativa', 'Mensagem']
+
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers])
+  }
+
+  return sheet
+}
+
+function planilhaPagGetResumoEnvioSheet_() {
+  const ss = planilhaPagGetSpreadsheet_()
+  const sheet = ss.getSheetByName(PLANILHA_PAG_SEND_SUMMARY_SHEET_NAME_) ||
+    ss.insertSheet(PLANILHA_PAG_SEND_SUMMARY_SHEET_NAME_)
+  const headers = ['Data/hora envio', 'Quantidade enviada', 'Email responsável']
+
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers])
+  }
+
+  return sheet
+}
+
+function planilhaPagRegistrarResumoEnvio_(dataHora, resumo) {
+  const sheet = planilhaPagGetResumoEnvioSheet_()
+  sheet.appendRow([
+    dataHora || new Date(),
+    resumo && resumo.atualizados ? resumo.atualizados : 0,
+    planilhaPagGetUsuarioEmail_()
+  ])
+}
+
+function planilhaPagGetUsuarioEmail_() {
+  let email = ''
+
+  try {
+    email = Session.getActiveUser().getEmail()
+  } catch (_) {
+    email = ''
+  }
+
+  if (!email) {
+    try {
+      email = Session.getEffectiveUser().getEmail()
+    } catch (_) {
+      email = ''
+    }
+  }
+
+  return email || '(email não disponível)'
+}
+
+function planilhaPagRegistrarLogEnvio_(sheet, item, status, retentativa, mensagem) {
+  sheet.appendRow([
+    new Date(),
+    item.linha || '',
+    item.dealId || '',
+    item.valorEnviado || 0,
+    status,
+    retentativa ? 'sim' : 'não',
+    mensagem || ''
+  ])
+}
+
+function planilhaPagCarregarUltimosSucessos_(sheet) {
+  const out = {}
+  const lastRow = sheet.getLastRow()
+  if (lastRow < 2) return out
+
+  const rows = sheet.getRange(2, 1, lastRow - 1, 7).getValues()
+  rows.forEach(function (row) {
+    const dealId = planilhaPagLimparValor_(row[2])
+    const status = planilhaPagNormalizar_(row[4])
+    const valor = planilhaPagParseValorMonetario_(row[3])
+    if (!dealId || status !== 'sucesso') return
+
+    out[dealId] = {
+      valorEnviado: valor,
+      dataHora: row[0]
+    }
+  })
+
+  return out
+}
+
+function obterFiltroPipedrive(filterId) {
+  const id = Number(filterId || 0)
+  if (!id) throw new Error('Informe um filterId válido.')
+
+  const endpoint = 'filters/' + encodeURIComponent(String(id)) + '?include_field_code=true'
+  Logger.log('[Planilha-Pag] Endpoint consultado: ' + endpoint)
+
+  try {
+    return planilhaPagCallPipedrive_(endpoint) || {}
+  } catch (err) {
+    Logger.log('[Planilha-Pag] Erro de API ao obter filtro ' + id + ': ' + planilhaPagErro_(err))
+    throw err
+  }
+}
+
+function buscarFiltroPipedrive(filterId) {
+  const id = Number(filterId || 0)
+  if (!id) throw new Error('Informe um filterId válido.')
+
+  const limit = PLANILHA_PAG_DEFAULT_LIMIT_
+  let start = 0
+  let todos = []
+
+  while (true) {
+    const endpoint = planilhaPagBuildDealsEndpoint_(id, start, limit)
+    Logger.log('[Planilha-Pag] Endpoint consultado: ' + endpoint)
+
+    let pagina
+    try {
+      pagina = planilhaPagCallPipedrive_(endpoint)
+    } catch (err) {
+      Logger.log('[Planilha-Pag] Erro de API no endpoint ' + endpoint + ': ' + planilhaPagErro_(err))
+      throw err
+    }
+
+    const registros = planilhaPagExtrairLista_(pagina)
+    todos = todos.concat(registros)
+
+    if (registros.length < limit) break
+    start += limit
+  }
+
+  return todos
+}
+
+function mapearDadosPipedrive(dados, indiceCampos) {
+  const lista = Array.isArray(dados) ? dados : []
+  return lista.map(function (deal) {
+    return {
+      titulo: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.titulo, indiceCampos),
+      numeroImovel: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.numeroImovel, indiceCampos),
+      dataPreenchimentoFormulario: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.dataPreenchimentoFormulario, indiceCampos),
+      parceiroResponsavel: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.parceiroResponsavel, indiceCampos),
+      dataTerminoRegistro: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.dataTerminoRegistro, indiceCampos),
+      dataTerminoTitularidade: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.dataTerminoTitularidade, indiceCampos),
+      executorRegistro: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.executorRegistro, indiceCampos),
+      executorTitularidade: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.executorTitularidade, indiceCampos),
+      executorContrato: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.executorContrato, indiceCampos),
+      executorItbi: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.executorItbi, indiceCampos),
+      tipoPagamento: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.tipoPagamento, indiceCampos),
+      docsLeilaoProtocolo: planilhaPagResolverCampo_(deal, PLANILHA_PAG_FIELDS_.docsLeilaoProtocolo, indiceCampos),
+      id: planilhaPagExtrairDealId_(deal)
+    }
+  })
+}
+
+function relacionarUsuarios(dados) {
+  return Array.isArray(dados) ? dados : []
+}
+
+function montarValuesSheets(dadosMapeados) {
+  const linhas = (Array.isArray(dadosMapeados) ? dadosMapeados : []).map(function (item) {
+    return [
+      planilhaPagLimparValor_(item.titulo),
+      planilhaPagLimparValor_(item.numeroImovel),
+      planilhaPagLimparValor_(item.dataPreenchimentoFormulario),
+      planilhaPagLimparValor_(item.parceiroResponsavel),
+      planilhaPagLimparValor_(item.dataTerminoRegistro),
+      planilhaPagLimparValor_(item.dataTerminoTitularidade),
+      planilhaPagLimparValor_(item.executorRegistro),
+      planilhaPagLimparValor_(item.executorTitularidade),
+      planilhaPagLimparValor_(item.executorContrato),
+      planilhaPagLimparValor_(item.executorItbi),
+      planilhaPagLimparValor_(item.tipoPagamento),
+      planilhaPagLimparValor_(item.docsLeilaoProtocolo),
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      planilhaPagLimparValor_(item.id)
+    ]
+  })
+
+  return [PLANILHA_PAG_HEADERS_].concat(linhas)
+}
+
+function escreverNaPlanilha(values) {
+  const linhas = Array.isArray(values) ? values : []
+  if (!linhas.length) throw new Error('Nenhum values informado para escrita.')
+
+  try {
+    const sheet = planilhaPagGetSheet_()
+    const props = PropertiesService.getScriptProperties()
+    const linhasExportacaoAnterior = Number(props.getProperty(PLANILHA_PAG_LAST_EXPORT_ROWS_PROP_) || 0)
+    const linhasDados = linhas.slice(1)
+    const linhasParaLimpar = Math.max(linhasDados.length, Math.max(linhasExportacaoAnterior - 1, 0), 1)
+
+    planilhaPagGarantirTamanhoSheet_(
+      sheet,
+      Math.max(linhasDados.length + 1, 2),
+      PLANILHA_PAG_START_COLUMN_ + PLANILHA_PAG_TOTAL_COLUMNS_ - 1
+    )
+    const dadosExtraidos = linhasDados.map(function (row) {
+      return row.slice(0, PLANILHA_PAG_EXTRACT_COLUMNS_)
+    })
+    const linhasIds = linhasDados.map(function (row) {
+      return [row[PLANILHA_PAG_TOTAL_COLUMNS_ - 1]]
+    })
+
+    sheet.getRange(2, PLANILHA_PAG_START_COLUMN_, linhasParaLimpar, PLANILHA_PAG_EXTRACT_COLUMNS_).clearContent()
+    sheet.getRange(2, PLANILHA_PAG_DEAL_ID_COLUMN_, linhasParaLimpar, 1).clearContent()
+    planilhaPagLimparAuxiliarDuplicada_(sheet, linhasParaLimpar)
+
+    if (linhasDados.length) {
+      sheet.getRange(2, PLANILHA_PAG_START_COLUMN_, linhasDados.length, PLANILHA_PAG_EXTRACT_COLUMNS_).setValues(dadosExtraidos)
+      sheet.getRange(2, PLANILHA_PAG_DEAL_ID_COLUMN_, linhasDados.length, 1).setValues(linhasIds)
+    }
+
+    props.setProperty(PLANILHA_PAG_LAST_EXPORT_ROWS_PROP_, String(linhasDados.length + 1))
+
+    SpreadsheetApp.flush()
+    Logger.log('[Planilha-Pag] Escrita no Sheets concluída. Aba=' + sheet.getName())
+  } catch (err) {
+    Logger.log('[Planilha-Pag] Erro de escrita no Sheets: ' + planilhaPagErro_(err))
+    throw err
+  }
+}
+
+function planilhaPagLimparAuxiliarDuplicada_(sheet, linhasParaLimpar) {
+  const headerDocs = planilhaPagLimparValor_(sheet.getRange(1, PLANILHA_PAG_DUPLICATE_AUXILIARY_COLUMN_ - 1).getValue())
+  const headerAuxiliar = planilhaPagLimparValor_(sheet.getRange(1, PLANILHA_PAG_DUPLICATE_AUXILIARY_COLUMN_).getValue())
+
+  if (
+    planilhaPagNormalizar_(headerDocs) !== planilhaPagNormalizar_(PLANILHA_PAG_FIELDS_.docsLeilaoProtocolo.nome) ||
+    planilhaPagNormalizar_(headerAuxiliar) !== planilhaPagNormalizar_('Auxiliar 1')
+  ) {
+    return
+  }
+
+  sheet.getRange(1, PLANILHA_PAG_DUPLICATE_AUXILIARY_COLUMN_, linhasParaLimpar + 1, 1).clearContent()
+}
+
+function planilhaPagGarantirTamanhoSheet_(sheet, totalLinhas, totalColunas) {
+  const maxRows = sheet.getMaxRows()
+  const maxColumns = sheet.getMaxColumns()
+
+  if (maxRows < totalLinhas) {
+    sheet.insertRowsAfter(maxRows, totalLinhas - maxRows)
+  }
+
+  if (maxColumns < totalColunas) {
+    sheet.insertColumnsAfter(maxColumns, totalColunas - maxColumns)
+  }
+}
+
+function planilhaPagBuildDealsEndpoint_(filterId, start, limit) {
+  return 'deals?start=' + encodeURIComponent(String(start || 0)) +
+    '&limit=' + encodeURIComponent(String(limit || PLANILHA_PAG_DEFAULT_LIMIT_)) +
+    '&status=all_not_deleted' +
+    '&filter_id=' + encodeURIComponent(String(filterId))
+}
+
+function planilhaPagCallPipedrive_(endpoint, method, payload) {
+  const httpMethod = String(method || 'GET').toUpperCase()
+  if (typeof callPipedrive === 'function') return callPipedrive(endpoint, httpMethod, payload || null)
+
+  const cfg = planilhaPagGetPipedriveConfig_()
+  const path = String(endpoint || '').replace(/^\/+/, '')
+  const sep = path.indexOf('?') >= 0 ? '&' : '?'
+  const url = cfg.baseUrl + '/' + path + sep + 'api_token=' + encodeURIComponent(cfg.apiKey)
+  const params = {
+    method: httpMethod,
+    muteHttpExceptions: true
+  }
+
+  if (payload !== null && payload !== undefined) {
+    params.contentType = 'application/json'
+    params.payload = JSON.stringify(payload)
+  }
+
+  const response = UrlFetchApp.fetch(url, params)
+  const status = response.getResponseCode()
+  const body = response.getContentText()
+  let json = null
+  try { json = JSON.parse(body) } catch (_) {}
+
+  if (status < 200 || status >= 300 || (json && json.success === false)) {
+    throw new Error('Erro Pipedrive HTTP ' + status + ': ' + body)
+  }
+
+  return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json
+}
+
+function planilhaPagGetPipedriveConfig_() {
+  const props = PropertiesService.getScriptProperties()
+  const apiKey = String(props.getProperty('PD_API_KEY') || '').trim()
+  if (!apiKey) throw new Error('Script Property PD_API_KEY não configurada.')
+
+  const baseUrlProp = String(props.getProperty('PD_BASE_URL') || '').trim()
+  const domain = String(props.getProperty('PD_DOMAIN') || '').trim()
+  let baseUrl = baseUrlProp || (domain ? 'https://' + domain.replace(/^https?:\/\//i, '').replace(/\/+$/, '') + '/api/v1' : '')
+
+  if (!baseUrl) throw new Error('Configure PD_BASE_URL ou PD_DOMAIN.')
+  baseUrl = baseUrl.replace(/\/+$/, '')
+  if (/\.pipedrive\.com\/v1$/i.test(baseUrl)) baseUrl = baseUrl.replace(/\/v1$/i, '/api/v1')
+
+  return { baseUrl: baseUrl, apiKey: apiKey }
+}
+
+function planilhaPagExtrairLista_(response) {
+  if (Array.isArray(response)) return response
+  if (response && Array.isArray(response.data)) return response.data
+  return []
+}
+
+function buscarIndiceCamposPipedrive() {
+  Logger.log('[Planilha-Pag] Endpoint consultado: dealFields?limit=500')
+  const fields = planilhaPagExtrairLista_(planilhaPagCallPipedrive_('dealFields?limit=500'))
+  const indice = {}
+
+  fields.forEach(function (field) {
+    const name = String(field && field.name ? field.name : '').trim()
+    const key = String(field && field.key ? field.key : '').trim()
+    if (!name || !key) return
+
+    indice[planilhaPagNormalizar_(name)] = {
+      key: key,
+      name: name,
+      options: planilhaPagIndexarOpcoesCampo_(field.options)
+    }
+  })
+
+  Logger.log('[Planilha-Pag] Campos do Pipedrive indexados: ' + Object.keys(indice).length)
+  return indice
+}
+
+function planilhaPagIndexarOpcoesCampo_(options) {
+  const out = {}
+  if (!Array.isArray(options)) return out
+
+  options.forEach(function (option) {
+    if (!option) return
+    const id = String(option.id == null ? '' : option.id).trim()
+    const label = String(option.label == null ? '' : option.label).trim()
+    if (id && label) out[id] = label
+  })
+
+  return out
+}
+
+function planilhaPagLogFiltro_(filtro) {
+  const conditionsCount = planilhaPagContarCondicoesFiltro_(filtro && filtro.conditions)
+  Logger.log(
+    '[Planilha-Pag] Filtro obtido: id=' + String(filtro && filtro.id ? filtro.id : '') +
+    ' | nome=' + String(filtro && filtro.name ? filtro.name : '') +
+    ' | tipo=' + String(filtro && filtro.type ? filtro.type : '') +
+    ' | condições=' + conditionsCount
+  )
+}
+
+function planilhaPagContarCondicoesFiltro_(node) {
+  if (!node || typeof node !== 'object') return 0
+
+  const children = Array.isArray(node.conditions) ? node.conditions : []
+  if (!children.length) return node.field_id || node.field_code ? 1 : 0
+
+  let total = 0
+  children.forEach(function (child) {
+    total += planilhaPagContarCondicoesFiltro_(child)
+  })
+
+  return total
+}
+
+function planilhaPagResolverCampo_(deal, field, indiceCampos) {
+  if (!field) {
+    planilhaPagLogCampoAusente_(deal, field)
+    return ''
+  }
+
+  const resolved = planilhaPagGetRawField_(deal, field, indiceCampos)
+  const raw = resolved.value
+  if (raw === '' || raw === null || raw === undefined) {
+    planilhaPagLogCampoAusente_(deal, field)
+    return ''
+  }
+
+  return planilhaPagResolverOpcoesDinamicas_(planilhaPagExtrairPrimitivo_(raw), resolved.meta)
+}
+
+function planilhaPagGetRawField_(deal, field, indiceCampos) {
+  if (!deal || !field) return { value: '', meta: null }
+
+  const aliases = [field.nome].concat(field.aliases || []).filter(Boolean)
+  for (let i = 0; i < aliases.length; i++) {
+    const alias = aliases[i]
+    if (Object.prototype.hasOwnProperty.call(deal, alias)) return { value: deal[alias], meta: null }
+  }
+
+  const normalizedAliases = aliases.map(planilhaPagNormalizar_)
+  const foundInDeal = planilhaPagFindFieldByNormalizedName_(deal, normalizedAliases)
+  if (foundInDeal.found) return { value: foundInDeal.value, meta: null }
+
+  const meta = planilhaPagFindFieldMeta_(field, indiceCampos)
+  if (meta && meta.key) {
+    if (Object.prototype.hasOwnProperty.call(deal, meta.key)) return { value: deal[meta.key], meta: meta }
+    if (deal.custom_fields && Object.prototype.hasOwnProperty.call(deal.custom_fields, meta.key)) {
+      return { value: deal.custom_fields[meta.key], meta: meta }
+    }
+  }
+
+  return { value: '', meta: meta }
+}
+
+function planilhaPagFindFieldMeta_(field, indiceCampos) {
+  if (!indiceCampos) return null
+  const aliases = [field.nome].concat(field.aliases || []).filter(Boolean)
+
+  for (let i = 0; i < aliases.length; i++) {
+    const meta = indiceCampos[planilhaPagNormalizar_(aliases[i])]
+    if (meta) return meta
+  }
+
+  return null
+}
+
+function planilhaPagFindFieldByNormalizedName_(obj, normalizedNames) {
+  if (!obj || typeof obj !== 'object') return { found: false, value: '' }
+
+  const keys = Object.keys(obj)
+  for (let i = 0; i < keys.length; i++) {
+    if (normalizedNames.indexOf(planilhaPagNormalizar_(keys[i])) >= 0) {
+      return { found: true, value: obj[keys[i]] }
+    }
+  }
+
+  return { found: false, value: '' }
+}
+
+function planilhaPagExtrairPrimitivo_(value) {
+  if (value === null || value === undefined) return ''
+  if (Array.isArray(value)) return value.map(planilhaPagExtrairPrimitivo_).filter(Boolean)
+  if (Object.prototype.toString.call(value) === '[object Date]') return value
+
+  if (typeof value === 'object') {
+    if (Object.prototype.hasOwnProperty.call(value, 'name')) return value.name
+    if (Object.prototype.hasOwnProperty.call(value, 'label')) return value.label
+    if (Object.prototype.hasOwnProperty.call(value, 'value')) return planilhaPagExtrairPrimitivo_(value.value)
+    if (Object.prototype.hasOwnProperty.call(value, 'id')) return value.id
+    return JSON.stringify(value)
+  }
+
+  return value
+}
+
+function planilhaPagResolverOpcoesDinamicas_(value, meta) {
+  if (!meta || !meta.options) return value
+
+  if (Array.isArray(value)) {
+    return value.map(function (item) {
+      return planilhaPagResolverOpcoesDinamicas_(item, meta)
+    }).filter(Boolean).join(', ')
+  }
+
+  const id = String(value == null ? '' : value).trim()
+  return id && Object.prototype.hasOwnProperty.call(meta.options, id) ? meta.options[id] : value
+}
+
+function planilhaPagGetSheet_() {
+  const ss = planilhaPagGetSpreadsheet_()
+  const props = PropertiesService.getScriptProperties()
+  const name = String(props.getProperty(PLANILHA_PAG_SHEET_NAME_PROP_) || PLANILHA_PAG_DEFAULT_SHEET_NAME_).trim()
+  return ss.getSheetByName(name) || ss.insertSheet(name)
+}
+
+function planilhaPagGetSpreadsheet_() {
+  const props = PropertiesService.getScriptProperties()
+  const spreadsheetId = String(props.getProperty(PLANILHA_PAG_SPREADSHEET_ID_PROP_) || '').trim()
+  return spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet()
+}
+
+function planilhaPagGetDefaultFilterId_() {
+  const props = PropertiesService.getScriptProperties()
+  const raw = String(props.getProperty(PLANILHA_PAG_FILTER_ID_PROP_) || '').trim()
+  const filterId = Number(raw || PLANILHA_PAG_DEFAULT_FILTER_ID_)
+  if (!filterId) {
+    throw new Error('PLANILHA_PAG_FILTER_ID inválido nas Script Properties.')
+  }
+  return filterId
+}
+
+function planilhaPagGetPaymentFieldKey_() {
+  const props = PropertiesService.getScriptProperties()
+  const key = String(props.getProperty(PLANILHA_PAG_PAYMENT_FIELD_KEY_PROP_) || PLANILHA_PAG_PAYMENT_FIELD_KEY_).trim()
+  if (!key) {
+    throw new Error('PLANILHA_PAG_PAYMENT_FIELD_KEY ausente nas Script Properties.')
+  }
+  return key
+}
+
+function planilhaPagRemoverTriggersPorHandler_(handler) {
+  const triggers = ScriptApp.getProjectTriggers()
+
+  triggers.forEach(function (trigger) {
+    if (trigger.getHandlerFunction && trigger.getHandlerFunction() === handler) {
+      ScriptApp.deleteTrigger(trigger)
+    }
+  })
+}
+
+function planilhaPagCriarTriggerSemanal_(handler, weekDay, hour) {
+  ScriptApp.newTrigger(handler)
+    .timeBased()
+    .onWeekDay(weekDay)
+    .atHour(hour)
+    .create()
+}
+
+function planilhaPagLimparValor_(value) {
+  if (value === null || value === undefined) return ''
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    return Utilities.formatDate(value, Session.getScriptTimeZone() || 'America/Sao_Paulo', 'dd/MM/yyyy')
+  }
+  return String(value).trim()
+}
+
+function planilhaPagExtrairDealId_(deal) {
+  if (!deal) return ''
+  if (deal.id !== null && deal.id !== undefined && deal.id !== '') return deal.id
+  if (deal.deal_id !== null && deal.deal_id !== undefined && deal.deal_id !== '') return deal.deal_id
+  if (deal.ID !== null && deal.ID !== undefined && deal.ID !== '') return deal.ID
+  if (deal.Id !== null && deal.Id !== undefined && deal.Id !== '') return deal.Id
+  if (deal['ID'] !== null && deal['ID'] !== undefined && deal['ID'] !== '') return deal['ID']
+  if (deal['Deal ID'] !== null && deal['Deal ID'] !== undefined && deal['Deal ID'] !== '') return deal['Deal ID']
+  if (deal['Negócio ID'] !== null && deal['Negócio ID'] !== undefined && deal['Negócio ID'] !== '') return deal['Negócio ID']
+  return ''
+}
+
+function planilhaPagParseValorMonetario_(value) {
+  if (value === null || value === undefined || value === '') return 0
+  if (typeof value === 'number') return isFinite(value) ? value : 0
+
+  let text = String(value).trim()
+  if (!text) return 0
+
+  text = text.replace(/[^\d,.-]/g, '')
+  const hasComma = text.indexOf(',') >= 0
+  const hasDot = text.indexOf('.') >= 0
+
+  if (hasComma && hasDot) {
+    text = text.replace(/\./g, '').replace(',', '.')
+  } else if (hasComma) {
+    text = text.replace(',', '.')
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(text)) {
+    text = text.replace(/\./g, '')
+  }
+
+  const parsed = Number(text)
+  return isFinite(parsed) ? parsed : 0
+}
+
+function planilhaPagValoresIguais_(a, b) {
+  const valorA = planilhaPagParseValorMonetario_(a)
+  const valorB = planilhaPagParseValorMonetario_(b)
+  return Math.round(valorA * 100) === Math.round(valorB * 100)
+}
+
+function planilhaPagNormalizar_(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function planilhaPagLogCampoAusente_(deal, field) {
+  Logger.log(
+    '[Planilha-Pag] Campo esperado ausente: ' +
+    String(field && field.nome ? field.nome : '(sem nome)') +
+    ' | busca=nome/alias no retorno do filtro + índice dinâmico dealFields' +
+    ' | dealId=' + String(deal && deal.id ? deal.id : '')
+  )
+}
+
+function planilhaPagErro_(err) {
+  return String(err && err.message ? err.message : err)
+}

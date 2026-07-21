@@ -1,0 +1,558 @@
+const NOTIF_EXEC_FILTER_ID_ = 35328
+const NOTIF_EXEC_PAGE_LIMIT_ = 500
+const NOTIF_EXEC_ACTIVITY_SUBJECT_ = 'Verificar Executores com Pendência'
+const NOTIF_EXEC_ACTIVITY_OWNER_ID_ = 25418043
+const NOTIF_EXEC_ACTIVITY_TYPE_KEY_ = 'leiloes_negativos'
+const NOTIF_EXEC_ACTIVITY_PRIORITY_FIELD_KEY_ = 'priority'
+const NOTIF_EXEC_ACTIVITY_PRIORITY_HIGH_ID_ = 27
+const NOTIF_EXEC_STATUS_FIELD_KEY_ = '7b455e26e36e1508d3f1746f6ff26cca4a374528'
+const NOTIF_EXEC_STATUS_NA_OPTION_ID_ = 1474
+const NOTIF_EXEC_TZ_ = 'America/Sao_Paulo'
+const NOTIF_EXEC_TEST_DEAL_ID_PROP_ = 'NOTIF_EXEC_TEST_DEAL_ID'
+
+const NOTIF_EXEC_REQUIRED_FIELDS_ = [
+  {
+    label: 'Docs Leilão',
+    fieldName: 'Docs leilão junto c/ protocolo Registro?',
+    fieldKey: '67eba314a9999e6842d2da2ba65fe727ddbdb1b0',
+    statusOptionId: 1755
+  },
+  {
+    label: 'Executor Registro',
+    fieldName: 'Executor: Registro',
+    fieldKey: 'ae3bc94d6a98d3509c6803d2b3b6351927a2f5e2',
+    statusOptionId: 1463
+  },
+  {
+    label: 'Executor Titularidade',
+    fieldName: 'Executor: Titularidade',
+    fieldKey: '03d5b34bd64eb313c521deed73537201ff73951b',
+    statusOptionId: 1465
+  },
+  {
+    label: 'Executor Contrato',
+    fieldName: 'Executor: Contrato',
+    fieldKey: '1dbb1d3c497001898a92edd0a1799d19485bf26e',
+    statusOptionId: 2301
+  },
+  {
+    label: 'Executor ITBI',
+    fieldName: 'Executor: ITBI',
+    fieldKey: '90cec4ad4796cbca9a16f4d3626b643cc0e090d9',
+    statusOptionId: 1464
+  },
+  {
+    label: 'Data Preenchimento: Formulário Arrematantes',
+    fieldName: 'Data Preenchimento: Formulário Arrematantes',
+    fieldKey: '758ec614bc1f8ed67513d72745d678a5285c3319',
+    statusOptionId: null
+  }
+]
+
+function validarExecutoresPendentesFiltro35328() {
+  return notifExecValidateFilter_(NOTIF_EXEC_FILTER_ID_)
+}
+
+function validarExecutoresPendentesPagamentoMensal(deal, changedKeys, options) {
+  const opts = options || {}
+  const result = notifExecValidateDeal_(deal, {
+    source: opts.webhookEvent && opts.webhookEvent.entity ? 'webhook_' + opts.webhookEvent.entity : 'webhook',
+    changedKeys: Array.isArray(changedKeys) ? changedKeys : []
+  })
+  result.refetchDeal = true
+  return result
+}
+
+function notifExecTriggerKeys_() {
+  return NOTIF_EXEC_REQUIRED_FIELDS_.map(function (field) { return field.fieldKey })
+}
+
+function notifExecOutputKeys_() {
+  return [NOTIF_EXEC_STATUS_FIELD_KEY_]
+}
+
+function notifExecActivityEvents_() {
+  return ['updated.activity', 'updated.activities']
+}
+
+function validarExecutoresPendentesDeal(dealId) {
+  const id = String(dealId || '').trim()
+  if (!id) throw new Error('Informe o ID do imóvel/negócio.')
+
+  const deal = notifExecCallPipedrive_('deals/' + encodeURIComponent(id), 'GET', null)
+  return notifExecValidateDeal_(notifExecUnwrapData_(deal), { source: 'manual' })
+}
+
+function testarValidacaoExecutoresPendentesImovel(dealId) {
+  const id = String(
+    dealId ||
+    PropertiesService.getScriptProperties().getProperty(NOTIF_EXEC_TEST_DEAL_ID_PROP_) ||
+    ''
+  ).trim()
+
+  if (!id) {
+    throw new Error(
+      'Informe o dealId no parâmetro ou configure a Script Property ' +
+      NOTIF_EXEC_TEST_DEAL_ID_PROP_ + '.'
+    )
+  }
+
+  const result = validarExecutoresPendentesDeal(id)
+  Logger.log(JSON.stringify(result, null, 2))
+  return result
+}
+
+function notifExecHandleWebhook_(e) {
+  const payload = notifExecParsePayload_(e)
+  const activity = notifExecExtractActivity_(payload)
+
+  if (notifExecIsCompletedPendingActivity_(activity)) {
+    const dealId = notifExecExtractActivityDealId_(activity)
+    if (!dealId) return { ok: true, skipped: true, reason: 'activity_without_deal_id', payload: payload }
+    return validarExecutoresPendentesDeal(dealId)
+  }
+
+  const dealId = notifExecExtractDealId_(payload)
+  if (dealId) return validarExecutoresPendentesDeal(dealId)
+
+  return validarExecutoresPendentesFiltro35328()
+}
+
+function notifExecShouldHandleActivityEvent_(payload) {
+  const norm = typeof normalizeWebhookEvent_ === 'function' ? normalizeWebhookEvent_(payload) : {}
+  const entity = String(norm.entity || '').toLowerCase()
+  if (entity !== 'activity' && entity !== 'activities') return false
+
+  const activity = notifExecExtractActivity_(payload)
+  return notifExecIsCompletedPendingActivity_(activity)
+}
+
+function notifExecHandleActivityWebhookEvent_(payload) {
+  const activity = notifExecExtractActivity_(payload)
+  if (!notifExecIsCompletedPendingActivity_(activity)) {
+    return { ok: true, skipped: true, reason: 'activity_not_completed_or_not_target_subject' }
+  }
+
+  const dealId = notifExecExtractActivityDealId_(activity)
+  if (!dealId) return { ok: true, skipped: true, reason: 'activity_without_deal_id' }
+
+  return validarExecutoresPendentesDeal(dealId)
+}
+
+function notifExecValidateFilter_(filterId) {
+  const startedAt = new Date()
+  const deals = notifExecFetchDealsByFilter_(filterId)
+  const results = []
+
+  for (let i = 0; i < deals.length; i++) {
+    try {
+      results.push(notifExecValidateDeal_(deals[i], { source: 'filter', filterId: filterId }))
+    } catch (err) {
+      results.push({
+        ok: false,
+        dealId: deals[i] && deals[i].id ? deals[i].id : '',
+        error: notifExecErrorMessage_(err)
+      })
+    }
+  }
+
+  return {
+    ok: results.every(function (item) { return item.ok !== false }),
+    filterId: filterId,
+    totalDeals: deals.length,
+    results: results,
+    durationMs: new Date().getTime() - startedAt.getTime()
+  }
+}
+
+function notifExecValidateDeal_(deal, options) {
+  const fullDeal = notifExecEnsureFullDeal_(deal)
+  const dealId = fullDeal && fullDeal.id ? fullDeal.id : ''
+  if (!dealId) throw new Error('Deal sem ID para validação.')
+
+  const pendings = notifExecFindPendings_(fullDeal)
+  notifExecUpdateStatusField_(dealId, pendings)
+  notifExecMarkPatchedDeal_(dealId)
+
+  if (!pendings.length) {
+    notifExecAppendLog_(fullDeal, 'n/a', { status: NOTIF_EXEC_STATUS_NA_OPTION_ID_ }, options)
+    return {
+      ok: true,
+      dealId: dealId,
+      source: options && options.source ? options.source : '',
+      pendings: [],
+      statusUpdatedTo: 'n/a',
+      activity: { action: 'none' }
+    }
+  }
+
+  const activityResult = notifExecEnsurePendingActivity_(dealId, pendings)
+  notifExecAppendLog_(fullDeal, pendings.map(function (item) { return item.label }).join(', '), {
+    statusOptionIds: notifExecStatusOptionIds_(pendings),
+    activity: activityResult
+  }, options)
+
+  return {
+    ok: true,
+    dealId: dealId,
+    source: options && options.source ? options.source : '',
+    pendings: pendings.map(function (item) { return item.label }),
+    statusOptionIds: notifExecStatusOptionIds_(pendings),
+    activity: activityResult
+  }
+}
+
+function notifExecFindPendings_(deal) {
+  const pendings = []
+
+  for (let i = 0; i < NOTIF_EXEC_REQUIRED_FIELDS_.length; i++) {
+    const field = NOTIF_EXEC_REQUIRED_FIELDS_[i]
+    const value = notifExecGetDealFieldValue_(deal, field.fieldKey)
+    if (notifExecIsEmptyValue_(value)) pendings.push(field)
+  }
+
+  return pendings
+}
+
+function notifExecUpdateStatusField_(dealId, pendings) {
+  const statusIds = notifExecStatusOptionIds_(pendings)
+  const payload = {}
+  payload[NOTIF_EXEC_STATUS_FIELD_KEY_] = pendings.length && statusIds.length
+    ? statusIds.join(',')
+    : (pendings.length ? '' : String(NOTIF_EXEC_STATUS_NA_OPTION_ID_))
+
+  return notifExecCallPipedrive_('deals/' + encodeURIComponent(String(dealId)), 'PUT', payload)
+}
+
+function notifExecEnsurePendingActivity_(dealId, pendings) {
+  const signature = notifExecPendingSignature_(pendings)
+  const note = notifExecBuildActivityNote_(pendings, signature)
+  const dueAt = notifExecAddHours_(new Date(), 24)
+  const dueDate = notifExecFormatDate_(dueAt)
+  const dueTime = notifExecFormatTime_(dueAt)
+  const openActivity = notifExecFindOpenPendingActivity_(dealId)
+
+  if (openActivity && notifExecActivityHasSignature_(openActivity, signature)) {
+    return { action: 'skipped_existing_open', id: openActivity.id || '', signature: signature }
+  }
+
+  if (openActivity && openActivity.id) {
+    const updatePayload = notifExecBuildActivityPayload_(dealId, pendings, dueDate, dueTime, note)
+    const updated = notifExecCallPipedrive_(
+      'activities/' + encodeURIComponent(String(openActivity.id)),
+      'PUT',
+      updatePayload
+    )
+    return { action: 'updated_existing_open', id: openActivity.id, signature: signature, raw: updated }
+  }
+
+  const created = notifExecCallPipedrive_(
+    'activities',
+    'POST',
+    notifExecBuildActivityPayload_(dealId, pendings, dueDate, dueTime, note)
+  )
+
+  return { action: 'created', id: notifExecExtractActivityId_(created), signature: signature, raw: created }
+}
+
+function notifExecBuildActivityPayload_(dealId, pendings, dueDate, dueTime, note) {
+  const payload = {
+    subject: NOTIF_EXEC_ACTIVITY_SUBJECT_,
+    type: NOTIF_EXEC_ACTIVITY_TYPE_KEY_,
+    deal_id: Number(dealId),
+    user_id: NOTIF_EXEC_ACTIVITY_OWNER_ID_,
+    due_date: dueDate,
+    due_time: dueTime,
+    note: note
+  }
+
+  payload[NOTIF_EXEC_ACTIVITY_PRIORITY_FIELD_KEY_] = NOTIF_EXEC_ACTIVITY_PRIORITY_HIGH_ID_
+  return payload
+}
+
+function notifExecBuildActivityNote_(pendings, signature) {
+  const lines = ['Campos pendentes:', '']
+  for (let i = 0; i < pendings.length; i++) lines.push('- ' + pendings[i].label)
+  lines.push('', 'Assinatura pendências: ' + signature)
+  return lines.join('\n')
+}
+
+function notifExecFindOpenPendingActivity_(dealId) {
+  const endpoint = 'activities?deal_id=' + encodeURIComponent(String(dealId)) + '&done=0&limit=500'
+  const response = notifExecCallPipedrive_(endpoint, 'GET', null)
+  const activities = notifExecExtractArray_(response)
+
+  for (let i = 0; i < activities.length; i++) {
+    const activity = activities[i] || {}
+    if (String(activity.subject || '').trim() === NOTIF_EXEC_ACTIVITY_SUBJECT_) return activity
+  }
+
+  return null
+}
+
+function notifExecFetchDealsByFilter_(filterId) {
+  const deals = []
+  let start = 0
+  let hasMore = true
+
+  while (hasMore) {
+    const endpoint = 'deals?start=' + encodeURIComponent(String(start)) +
+      '&limit=' + encodeURIComponent(String(NOTIF_EXEC_PAGE_LIMIT_)) +
+      '&status=all_not_deleted' +
+      '&filter_id=' + encodeURIComponent(String(filterId))
+    const response = notifExecCallPipedrive_(endpoint, 'GET', null)
+    const pageDeals = notifExecExtractArray_(response)
+    for (let i = 0; i < pageDeals.length; i++) deals.push(pageDeals[i])
+
+    const pagination = response && response.additional_data && response.additional_data.pagination
+      ? response.additional_data.pagination
+      : null
+    hasMore = pagination
+      ? !!pagination.more_items_in_collection
+      : pageDeals.length >= NOTIF_EXEC_PAGE_LIMIT_
+    start = pagination && pagination.next_start != null ? Number(pagination.next_start) : start + NOTIF_EXEC_PAGE_LIMIT_
+    if (!pageDeals.length) hasMore = false
+  }
+
+  return deals
+}
+
+function notifExecEnsureFullDeal_(deal) {
+  const raw = notifExecUnwrapData_(deal)
+  if (raw && raw.id && NOTIF_EXEC_REQUIRED_FIELDS_.every(function (field) {
+    return Object.prototype.hasOwnProperty.call(raw, field.fieldKey) ||
+      !!(raw.custom_fields && Object.prototype.hasOwnProperty.call(raw.custom_fields, field.fieldKey))
+  })) {
+    return raw
+  }
+
+  const dealId = raw && raw.id ? raw.id : ''
+  if (!dealId) return raw
+  return notifExecUnwrapData_(notifExecCallPipedrive_('deals/' + encodeURIComponent(String(dealId)), 'GET', null))
+}
+
+function notifExecCallPipedrive_(endpoint, method, payload) {
+  if (typeof callPipedrive === 'function') return callPipedrive(endpoint, method || 'GET', payload || null)
+
+  const cfg = notifExecGetPipedriveConfig_()
+  const path = String(endpoint || '').trim().replace(/^\/+/, '')
+  if (!path) throw new Error('Endpoint Pipedrive vazio.')
+
+  const hasToken = /(^|[?&])api_token=/.test(path)
+  const sep = path.indexOf('?') >= 0 ? '&' : '?'
+  const url = cfg.baseUrl + '/' + path + (hasToken ? '' : sep + 'api_token=' + encodeURIComponent(cfg.token))
+  const httpMethod = String(method || 'GET').toUpperCase()
+  const params = { method: httpMethod, muteHttpExceptions: true }
+
+  if (payload !== null && payload !== undefined && httpMethod !== 'GET' && httpMethod !== 'DELETE') {
+    params.contentType = 'application/json'
+    params.payload = JSON.stringify(payload)
+  }
+
+  const response = UrlFetchApp.fetch(url, params)
+  const status = response.getResponseCode()
+  const text = response.getContentText()
+  let json = null
+
+  try {
+    json = text ? JSON.parse(text) : {}
+  } catch (err) {
+    throw new Error('Pipedrive retornou resposta não JSON (' + status + '): ' + text)
+  }
+
+  if (status < 200 || status >= 300 || json.success === false) {
+    throw new Error('Erro Pipedrive ' + status + ': ' + text + ' | URL=' + notifExecRedactUrl_(url))
+  }
+
+  return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json
+}
+
+function notifExecMarkPatchedDeal_(dealId) {
+  if (typeof markPatchedDeal_ === 'function') markPatchedDeal_(dealId)
+}
+
+function notifExecAppendLog_(deal, fields, patch, options) {
+  if (typeof appendLog_ !== 'function') return
+  appendLog_({
+    timestamp: new Date(),
+    dealId: deal && deal.id ? deal.id : '',
+    title: deal && deal.title ? deal.title : '',
+    action: options && options.source ? options.source : 'notif_exec_pendentes',
+    fn: 'validarExecutoresPendentesPagamentoMensal',
+    altered: 'SIM',
+    fields: fields,
+    patch: patch,
+    changedKeys: options && Array.isArray(options.changedKeys) ? options.changedKeys : []
+  })
+}
+
+function notifExecGetPipedriveConfig_() {
+  const props = PropertiesService.getScriptProperties()
+  const token = String(
+    props.getProperty('PIPEDRIVE_TOKEN') ||
+    props.getProperty('PIPEDRIVE_API_TOKEN') ||
+    props.getProperty('PD_API_KEY') ||
+    ''
+  ).trim()
+  if (!token) throw new Error('Configure PIPEDRIVE_TOKEN, PIPEDRIVE_API_TOKEN ou PD_API_KEY.')
+
+  const baseProp = String(
+    props.getProperty('BASE_URL') ||
+    props.getProperty('PIPEDRIVE_BASE_URL') ||
+    props.getProperty('PD_BASE_URL') ||
+    ''
+  ).trim()
+  const domain = String(props.getProperty('PIPEDRIVE_DOMAIN') || props.getProperty('PD_DOMAIN') || '').trim()
+  return { token: token, baseUrl: notifExecNormalizePipedriveBaseUrl_(baseProp || domain || 'https://api.pipedrive.com/v1') }
+}
+
+function notifExecNormalizePipedriveBaseUrl_(value) {
+  let url = String(value || '').trim().replace(/\/+$/, '')
+  if (!/^https?:\/\//i.test(url)) {
+    if (url.indexOf('/') >= 0 || /\.pipedrive\.com/i.test(url)) url = 'https://' + url
+    else url = 'https://' + url + '.pipedrive.com'
+  }
+
+  if (/^https?:\/\/api\.pipedrive\.com$/i.test(url)) return url + '/v1'
+  if (/^https?:\/\/api\.pipedrive\.com\/v1$/i.test(url)) return url
+  if (/\.pipedrive\.com$/i.test(url)) return url + '/api/v1'
+  if (/\.pipedrive\.com\/v1$/i.test(url)) return url.replace(/\/v1$/i, '/api/v1')
+  if (/\.pipedrive\.com\/api$/i.test(url)) return url + '/v1'
+  return url
+}
+
+function notifExecParsePayload_(e) {
+  if (!e || !e.postData || !e.postData.contents) return {}
+  try {
+    return JSON.parse(e.postData.contents)
+  } catch (err) {
+    return { raw: e.postData.contents }
+  }
+}
+
+function notifExecExtractDealId_(payload) {
+  const current = payload && (payload.current || payload.data || payload.deal || payload)
+  if (!current) return ''
+  if (current.id && (current.title || current.pipeline_id || current.stage_id)) return current.id
+  if (current.deal_id) return notifExecNormalizeId_(current.deal_id)
+  if (current.deal && current.deal.id) return notifExecNormalizeId_(current.deal.id)
+  if (payload.meta && payload.meta.deal_id) return notifExecNormalizeId_(payload.meta.deal_id)
+  return ''
+}
+
+function notifExecExtractActivity_(payload) {
+  const candidate = payload && (payload.current || payload.data || payload.activity || payload)
+  if (!candidate) return null
+  if (candidate.subject || candidate.done != null || candidate.deal_id) return candidate
+  return null
+}
+
+function notifExecIsCompletedPendingActivity_(activity) {
+  if (!activity) return false
+  if (String(activity.subject || '').trim() !== NOTIF_EXEC_ACTIVITY_SUBJECT_) return false
+  return notifExecIsDoneValue_(activity.done) || notifExecIsDoneValue_(activity.marked_as_done)
+}
+
+function notifExecIsDoneValue_(value) {
+  return value === true || value === 1 || String(value || '').toLowerCase() === 'true' || String(value || '') === '1'
+}
+
+function notifExecExtractActivityDealId_(activity) {
+  if (!activity) return ''
+  if (activity.deal_id && typeof activity.deal_id === 'object' && activity.deal_id.id) {
+    return notifExecNormalizeId_(activity.deal_id.id)
+  }
+  if (activity.deal_id) return notifExecNormalizeId_(activity.deal_id)
+  if (activity.deal && activity.deal.id) return notifExecNormalizeId_(activity.deal.id)
+  return ''
+}
+
+function notifExecExtractActivityId_(activity) {
+  if (!activity) return ''
+  if (activity.id) return activity.id
+  if (activity.data && activity.data.id) return activity.data.id
+  if (activity.activity && activity.activity.id) return activity.activity.id
+  return ''
+}
+
+function notifExecActivityHasSignature_(activity, signature) {
+  const note = String(activity && activity.note ? activity.note : '')
+  return note.indexOf('Assinatura pendências: ' + signature) >= 0
+}
+
+function notifExecPendingSignature_(pendings) {
+  return pendings.map(function (item) { return item.label }).sort().join('|')
+}
+
+function notifExecStatusOptionIds_(pendings) {
+  const ids = []
+  for (let i = 0; i < pendings.length; i++) {
+    if (pendings[i].statusOptionId) ids.push(pendings[i].statusOptionId)
+  }
+  return ids
+}
+
+function notifExecGetDealFieldValue_(deal, fieldKey) {
+  const key = String(fieldKey || '').trim()
+  if (!deal || !key) return null
+  if (Object.prototype.hasOwnProperty.call(deal, key)) return deal[key]
+  if (deal.custom_fields && Object.prototype.hasOwnProperty.call(deal.custom_fields, key)) return deal.custom_fields[key]
+  return null
+}
+
+function notifExecIsEmptyValue_(value) {
+  if (value == null) return true
+  if (Array.isArray(value)) return value.length === 0
+  const type = typeof value
+  if (type === 'string') return value.trim() === ''
+  if (type === 'number') return !isFinite(value) || value === 0
+  if (type === 'boolean') return false
+  if (type === 'object') {
+    if (Object.prototype.hasOwnProperty.call(value, 'id')) return notifExecIsEmptyValue_(value.id)
+    if (Object.prototype.hasOwnProperty.call(value, 'value')) return notifExecIsEmptyValue_(value.value)
+    return Object.keys(value).length === 0
+  }
+  return false
+}
+
+function notifExecExtractArray_(response) {
+  if (Array.isArray(response)) return response
+  if (response && Array.isArray(response.data)) return response.data
+  return []
+}
+
+function notifExecUnwrapData_(response) {
+  if (response && response.data && typeof response.data === 'object' && !Array.isArray(response.data)) return response.data
+  return response
+}
+
+function notifExecNormalizeId_(value) {
+  if (value && typeof value === 'object' && value.id) return String(value.id)
+  return String(value || '').trim()
+}
+
+function notifExecAddHours_(date, hours) {
+  return new Date(date.getTime() + Number(hours || 0) * 60 * 60 * 1000)
+}
+
+function notifExecFormatDate_(date) {
+  return Utilities.formatDate(date, NOTIF_EXEC_TZ_, 'yyyy-MM-dd')
+}
+
+function notifExecFormatTime_(date) {
+  return Utilities.formatDate(date, NOTIF_EXEC_TZ_, 'HH:mm')
+}
+
+function notifExecJsonResponse_(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON)
+}
+
+function notifExecRedactUrl_(url) {
+  return String(url || '').replace(/([?&]api_token=)[^&\s]+/gi, '$1[REDACTED]')
+}
+
+function notifExecErrorMessage_(err) {
+  return err && err.message ? err.message : String(err)
+}

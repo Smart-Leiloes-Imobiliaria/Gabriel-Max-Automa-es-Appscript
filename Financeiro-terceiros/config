@@ -1,0 +1,347 @@
+const SHEET_NAME = 'Webhook_Deals'
+const SHEET_ERRORS = 'Erros'
+const LOG_SPREADSHEET_ID_FALLBACK = '1KhPsgcGNsEQmAOWcc6d2E51oRB55xfLJOyeMFEcQ1Z0'
+const LOG_HEADER = [
+  'Timestamp',
+  'Deal ID',
+  'Título',
+  'Ação',
+  'Função',
+  'Alterado',
+  'Campos Atualizados',
+  'Patch (JSON)',
+  'Changed Keys'
+]
+
+function setup() {
+  registerSpreadsheet_()
+  ensureSheets_()
+}
+
+function setPipedriveProps(apiKey, domain) {
+  const props = PropertiesService.getScriptProperties()
+  const key = String(apiKey || '').trim()
+  if (!key) throw new Error('Informe apiKey')
+
+  const dom = String(domain || props.getProperty('PD_DOMAIN') || '').trim()
+  if (!dom) throw new Error('Informe domain (ex: smartleiloes)')
+
+  const base = 'https://' + dom + '.pipedrive.com/api/v1'
+
+  props.setProperties({
+    PD_API_KEY: key,
+    PD_DOMAIN: dom,
+    PD_BASE_URL: base,
+    PIPEDRIVE_API_TOKEN: key,
+    PIPEDRIVE_TOKEN: key,
+    PIPEDRIVE_BASE_URL: base
+  }, true)
+
+  return { ok: true, PD_DOMAIN: dom, PD_BASE_URL: base }
+}
+
+function setWebhookVerboseLogEnabled(enabled) {
+  const props = PropertiesService.getScriptProperties()
+  const next = !!enabled
+  props.setProperty('WEBHOOK_VERBOSE_LOG', next ? 'true' : 'false')
+  return { ok: true, WEBHOOK_VERBOSE_LOG: next }
+}
+
+function getWebhookUrl() {
+  const url = String(ScriptApp.getService().getUrl() || '').trim()
+  if (!url) throw new Error('Publique como Web App para obter a URL (Deploy > New deployment > Web app).')
+  return url
+}
+
+function safeWebhookUrl_() {
+  const url = String(ScriptApp.getService().getUrl() || '').trim()
+  return url || '(não implantado como Web App)'
+}
+
+function registerSpreadsheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet()
+  if (!ss) throw new Error('Abra a planilha e rode setup() pelo editor do Apps Script.')
+  PropertiesService.getScriptProperties().setProperties({
+    CONTAINER_SPREADSHEET_ID: ss.getId(),
+    LOG_SPREADSHEET_ID: ss.getId()
+  }, true)
+}
+
+function getLogSpreadsheetId_() {
+  const props = PropertiesService.getScriptProperties()
+  return String(
+    props.getProperty('LOG_SPREADSHEET_ID') ||
+    props.getProperty('CONTAINER_SPREADSHEET_ID') ||
+    LOG_SPREADSHEET_ID_FALLBACK ||
+    ''
+  ).trim()
+}
+
+function getSpreadsheet_() {
+  const id = getLogSpreadsheetId_()
+  if (id) return SpreadsheetApp.openById(id)
+
+  const active = SpreadsheetApp.getActiveSpreadsheet()
+  if (active) return active
+
+  throw new Error('Planilha de log não configurada. Defina LOG_SPREADSHEET_ID ou rode setup() uma vez.')
+}
+
+function getLogSpreadsheetDebug_() {
+  const props = PropertiesService.getScriptProperties()
+  const active = SpreadsheetApp.getActiveSpreadsheet()
+  const resolvedId = getLogSpreadsheetId_()
+  const out = {
+    ok: false,
+    activeSpreadsheetId: active ? active.getId() : '',
+    propertyContainerSpreadsheetId: String(props.getProperty('CONTAINER_SPREADSHEET_ID') || '').trim(),
+    propertyLogSpreadsheetId: String(props.getProperty('LOG_SPREADSHEET_ID') || '').trim(),
+    fallbackLogSpreadsheetId: LOG_SPREADSHEET_ID_FALLBACK,
+    resolvedSpreadsheetId: resolvedId,
+    webhookUrl: safeWebhookUrl_()
+  }
+
+  try {
+    const ss = getSpreadsheet_()
+    out.ok = true
+    out.spreadsheetId = ss.getId()
+    out.spreadsheetName = ss.getName()
+    out.spreadsheetUrl = ss.getUrl()
+    out.sheetNames = ss.getSheets().map(function(sh) { return sh.getName() })
+  } catch (error) {
+    out.error = String(error && error.message ? error.message : error)
+  }
+
+  return out
+}
+
+function ensureRoomForAppend_(sheet, keepHeaderRows) {
+  const keep = Math.max(1, Number(keepHeaderRows || 1))
+  while (sheet.getLastRow() >= sheet.getMaxRows()) {
+    if (sheet.getLastRow() <= keep) {
+      throw new Error('Aba sem espaço livre para logs: ' + sheet.getName())
+    }
+    sheet.deleteRow(keep + 1)
+  }
+}
+
+function appendRowWithoutGrowing_(sheet, row, keepHeaderRows) {
+  ensureRoomForAppend_(sheet, keepHeaderRows)
+
+  const targetRow = sheet.getLastRow() + 1
+  if (targetRow > sheet.getMaxRows()) {
+    throw new Error('Sem linhas disponíveis para append na aba: ' + sheet.getName())
+  }
+  if (row.length > sheet.getMaxColumns()) {
+    throw new Error('Linha de log excede a largura da aba: ' + sheet.getName())
+  }
+
+  sheet.getRange(targetRow, 1, 1, row.length).setValues([row])
+  SpreadsheetApp.flush()
+  return targetRow
+}
+
+function appendLogStrict_({ timestamp, dealId, title, action, fn, altered, fields, patch, changedKeys }) {
+  const ss = getSpreadsheet_()
+  let sh = ss.getSheetByName(SHEET_NAME)
+  if (!sh) {
+    ensureSheets_()
+    sh = ss.getSheetByName(SHEET_NAME)
+  }
+  if (!sh) throw new Error('Aba de log não encontrada: ' + SHEET_NAME)
+
+  const row = [
+    timestamp || new Date(),
+    String(dealId || ''),
+    String(title || ''),
+    String(action || ''),
+    String(fn || ''),
+    String(altered || ''),
+    String(fields || ''),
+    patch ? (typeof patch === 'string' ? patch : JSON.stringify(patch)) : '',
+    changedKeys ? JSON.stringify(changedKeys) : ''
+  ]
+
+  const beforeLastRow = sh.getLastRow()
+  const appendedRow = appendRowWithoutGrowing_(sh, row, 1)
+
+  return {
+    ok: true,
+    spreadsheetId: ss.getId(),
+    spreadsheetName: ss.getName(),
+    spreadsheetUrl: ss.getUrl(),
+    sheetName: sh.getName(),
+    beforeLastRow: beforeLastRow,
+    afterLastRow: sh.getLastRow(),
+    appendedRow: appendedRow,
+    appendedRowPreview: row
+  }
+}
+
+function testAppendLog_() {
+  const debug = getLogSpreadsheetDebug_()
+  return appendLogStrict_({
+    timestamp: new Date(),
+    dealId: 'TESTE',
+    title: 'Teste manual de log',
+    action: 'test',
+    fn: 'testAppendLog_',
+    altered: 'SIM',
+    fields: 'teste manual de escrita em planilha',
+    patch: debug,
+    changedKeys: []
+  })
+}
+
+function ensureSheets_() {
+  const ss = getSpreadsheet_()
+
+  let sh = ss.getSheetByName(SHEET_NAME)
+  if (!sh) sh = ss.insertSheet(SHEET_NAME)
+
+  let err = ss.getSheetByName(SHEET_ERRORS)
+  if (!err) {
+    err = ss.insertSheet(SHEET_ERRORS)
+    err.getRange(1, 1, 1, 5).setValues([['Timestamp', 'Event', 'Error Message', 'Stack Trace', 'Function']])
+  }
+
+  const lastCol = Math.max(1, sh.getLastColumn())
+  const current = sh.getRange(1, 1, 1, lastCol).getValues()[0] || []
+  const hasAnyHeader = current.join('').trim() !== ''
+
+  if (!hasAnyHeader) {
+    sh.getRange(1, 1, 1, LOG_HEADER.length).setValues([LOG_HEADER])
+  } else {
+    const missing = LOG_HEADER.filter(h => !current.includes(h))
+    if (missing.length) {
+      const startCol = current.length + 1
+      sh.getRange(1, startCol, 1, missing.length).setValues([missing])
+    }
+  }
+}
+
+function getPipedriveProps_() {
+  const props = PropertiesService.getScriptProperties()
+  return {
+    API_KEY: props.getProperty('PD_API_KEY') || props.getProperty('PIPEDRIVE_API_TOKEN') || props.getProperty('PIPEDRIVE_TOKEN'),
+    DOMAIN: props.getProperty('PD_DOMAIN') || '',
+    BASE_URL: props.getProperty('PD_BASE_URL') || props.getProperty('PIPEDRIVE_BASE_URL') || ('https:' + '//' + 'api.pipedrive.com/v1')
+  }
+}
+
+function callPipedrive(endpoint, method, payload) {
+  const cfg = getPipedriveProps_()
+  const apiKey = String(cfg.API_KEY || '').trim()
+  if (!apiKey) throw new Error('API Key ausente. Configure PD_API_KEY, PIPEDRIVE_API_TOKEN ou PIPEDRIVE_TOKEN.')
+
+  let base = String(cfg.BASE_URL || 'https://api.pipedrive.com/v1').trim().replace(/\/+$/, '')
+  if (/\.pipedrive\.com\/v1$/i.test(base)) base = base.replace(/\/v1$/i, '/api/v1')
+
+  const path = String(endpoint || '').trim().replace(/^\/+/, '')
+  if (!path) throw new Error('Endpoint Pipedrive vazio.')
+
+  const hasToken = /(^|[?&])api_token=/.test(path)
+  const sep = path.indexOf('?') >= 0 ? '&' : '?'
+  const url = base + '/' + path + (hasToken ? '' : sep + 'api_token=' + encodeURIComponent(apiKey))
+  const httpMethod = String(method || 'GET').toUpperCase()
+  const params = { method: httpMethod, muteHttpExceptions: true }
+
+  if (payload !== null && payload !== undefined && httpMethod !== 'GET' && httpMethod !== 'DELETE') {
+    params.contentType = 'application/json'
+    params.payload = JSON.stringify(payload)
+  }
+
+  const response = UrlFetchApp.fetch(url, params)
+  const status = response.getResponseCode()
+  const body = response.getContentText()
+  let json = null
+
+  try {
+    json = body ? JSON.parse(body) : {}
+  } catch (error) {
+    throw new Error('Pipedrive retornou resposta não JSON (' + status + '): ' + body)
+  }
+
+  if (status < 200 || status >= 300 || json.success === false) {
+    throw new Error('Erro Pipedrive HTTP ' + status + ': ' + body + ' | URL=' + redactPipedriveUrl_(url))
+  }
+
+  return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json
+}
+
+function redactPipedriveUrl_(url) {
+  return String(url || '').replace(/([?&]api_token=)[^&\s]+/gi, '$1[REDACTED]')
+}
+
+function getScriptPropertyBool_(key, defaultValue) {
+  const raw = PropertiesService.getScriptProperties().getProperty(String(key || ''))
+  if (raw == null || raw === '') return !!defaultValue
+
+  const normalized = String(raw).trim().toLowerCase()
+  if (normalized === '1' || normalized === 'true' || normalized === 'sim' || normalized === 'yes' || normalized === 'on') return true
+  if (normalized === '0' || normalized === 'false' || normalized === 'nao' || normalized === 'não' || normalized === 'no' || normalized === 'off') return false
+
+  return !!defaultValue
+}
+
+function stableHash32Text_(text) {
+  let h = 0
+  const value = String(text || '')
+  for (let i = 0; i < value.length; i++) {
+    h = (h * 31 + value.charCodeAt(i)) >>> 0
+  }
+  return h
+}
+
+function getWebhookVerboseLogEnabled_() {
+  return getScriptPropertyBool_('WEBHOOK_VERBOSE_LOG', false)
+}
+
+function getWebhookEventDedupTtlSeconds_() {
+  const raw = Number(PropertiesService.getScriptProperties().getProperty('WEBHOOK_EVENT_DEDUP_TTL_SECONDS') || 180)
+  if (!isFinite(raw) || raw < 15) return 180
+  return Math.floor(raw)
+}
+
+function appendLog_({ timestamp, dealId, title, action, fn, altered, fields, patch, changedKeys }) {
+  try {
+    appendLogStrict_({ timestamp, dealId, title, action, fn, altered, fields, patch, changedKeys })
+  } catch (error) {
+    console.error('appendLog_ failed:', String(error && error.message ? error.message : error), String(error && error.stack ? error.stack : ''))
+  }
+}
+
+function logError(event, error, functionName) {
+  try {
+    const ss = getSpreadsheet_()
+    let sh = ss.getSheetByName(SHEET_ERRORS)
+    if (!sh) {
+      ensureSheets_()
+      sh = ss.getSheetByName(SHEET_ERRORS)
+    }
+    appendRowWithoutGrowing_(sh, [new Date(), JSON.stringify(event || {}), String(error && error.message ? error.message : error), String(error && error.stack ? error.stack : ''), functionName], 1)
+  } catch (logErr) {
+    console.error('logError failed:', String(logErr && logErr.message ? logErr.message : logErr), String(logErr && logErr.stack ? logErr.stack : ''))
+  }
+}
+
+function jsonOut_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON)
+}
+
+function markPatchedDeal_(dealId) {
+  const id = String(dealId || '').trim()
+  if (!id) return
+  CacheService.getScriptCache().put('PD_PATCH_' + id, String(Date.now()), 120)
+}
+
+function patchedRecently_(dealId, seconds) {
+  const id = String(dealId || '').trim()
+  if (!id) return false
+  const s = Number(seconds || 25)
+  const v = CacheService.getScriptCache().get('PD_PATCH_' + id)
+  if (!v) return false
+  const ts = Number(v)
+  if (!ts) return false
+  return (Date.now() - ts) <= (s * 1000)
+}
