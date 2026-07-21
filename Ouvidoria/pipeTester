@@ -1,0 +1,239 @@
+class PipedriveDealsTester {
+  constructor(config) {
+    this.config = config;
+  }
+
+  getProps_() {
+    var p = PropertiesService.getScriptProperties();
+    var baseUrl = String(p.getProperty('BASE_URL') || '').trim();
+    var token = String(p.getProperty('PIPEDRIVE_TOKEN') || '').trim();
+
+    if (!baseUrl || !token) {
+      throw new Error('Faltam BASE_URL ou PIPEDRIVE_TOKEN nas Script Properties.');
+    }
+
+    baseUrl = baseUrl.replace(/\/+$/, '');
+    if (!/\/v1$/i.test(baseUrl)) baseUrl = baseUrl + '/v1';
+
+    return { baseUrl: baseUrl, token: token };
+  }
+
+  toQueryString_(obj) {
+    var parts = [];
+    for (var k in obj) {
+      if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+      if (obj[k] === undefined || obj[k] === null) continue;
+      parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(obj[k])));
+    }
+    return parts.join('&');
+  }
+
+  request_(method, path, params, payload) {
+    var props = this.getProps_();
+    var allParams = Object.assign({}, params || {}, { api_token: props.token });
+    var qs = this.toQueryString_(allParams);
+    var url = props.baseUrl + path + (qs ? ('?' + qs) : '');
+
+    var options = {
+      method: method,
+      muteHttpExceptions: true,
+      followRedirects: true
+    };
+
+    if (payload !== undefined) {
+      options.contentType = 'application/json';
+      options.payload = JSON.stringify(payload);
+    }
+
+    var res = UrlFetchApp.fetch(url, options);
+    var code = res.getResponseCode();
+    var text = res.getContentText();
+    var json = JSON.parse(text || '{}');
+
+    if (code >= 400 || !json || json.success !== true) {
+      throw new Error('Erro Pipedrive (' + code + '): ' + text);
+    }
+
+    return json;
+  }
+
+  get_(path, params) {
+    return this.request_('get', path, params || {}, undefined).data || null;
+  }
+
+  findDealByPropertyCode_(imovelCode) {
+    var term = String(imovelCode || '').trim();
+    if (!term) return null;
+
+    var data = this.get_('/deals/search', { term: term, limit: 10 });
+    var items = data && data.items ? data.items : [];
+    if (!items.length) return null;
+
+    return items[0] && items[0].item ? items[0].item : null;
+  }
+
+  getDealById_(dealId) {
+    return this.get_('/deals/' + encodeURIComponent(String(dealId)), {});
+  }
+
+  resolveExecutorFieldKeyBySetor_(setor) {
+    var mapa = {
+      contrato: '1dbb1d3c497001898a92edd0a1799d19485bf26e',
+      itbi: '90cec4ad4796cbca9a16f4d3626b643cc0e090d9',
+      titularidade: '03d5b34bd64eb313c521deed73537201ff73951b',
+      registro: 'ae3bc94d6a98d3509c6803d2b3b6351927a2f5e2',
+      iptu: 'beaa2e2d9639559f5879ddccfeb665eb171a4a90',
+      condominio: '48702809ea42b44effdcc2ca4a5b64b3ac0a5c51',
+      desocupacao: '71dd30861def8dbfba689db5aace5db9d6193ef1'
+    };
+
+    var setorNorm = String(setor || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    for (var chave in mapa) {
+      if (setorNorm.indexOf(chave) !== -1) {
+        return mapa[chave];
+      }
+    }
+
+    return mapa.contrato;
+  }
+
+  resolveOptionLabel_(fieldKey, rawValue) {
+    if (rawValue === null || rawValue === undefined) return null;
+
+    var allOptions = this.config.PIPEDRIVE_EXECUTOR_OPTIONS || {};
+    var fieldOptions = allOptions[fieldKey] || null;
+    var value = String(rawValue).trim();
+
+    if (!fieldOptions) return value;
+
+    return fieldOptions[value] || value;
+  }
+
+  extractFields_(deal, setor) {
+    var executorFieldKey = this.resolveExecutorFieldKeyBySetor_(setor);
+    var executorRaw = executorFieldKey ? deal[executorFieldKey] : null;
+
+    var executorValor = executorRaw;
+
+    if (executorRaw && typeof executorRaw === 'object') {
+      executorValor =
+        executorRaw.label ||
+        executorRaw.name ||
+        executorRaw.value ||
+        JSON.stringify(executorRaw);
+    }
+
+    executorValor = this.resolveOptionLabel_(executorFieldKey, executorValor);
+
+    return {
+      deal_id: deal.id || null,
+      titulo: deal.title || null,
+      setor: setor || null,
+      proponente: deal['dfe3b8f6919638e6d107758dbee74ed1be341803'] || null,
+      executor_field_key: executorFieldKey,
+      executor_raw: executorRaw,
+      executor: executorValor || null
+    };
+  }
+
+  testRow_(sheet, row) {
+    var imovel = sheet.getRange(row, this.config.COL_IMOVEL).getValue();
+    if (!imovel) return null;
+
+    var setor = sheet.getRange(row, this.config.COL_SETOR).getValue();
+
+    var dealResumo = this.findDealByPropertyCode_(imovel);
+    if (!dealResumo || !dealResumo.id) {
+      return {
+        row: row,
+        imovel: imovel,
+        setor: setor,
+        ok: false,
+        erro: 'Deal não encontrado'
+      };
+    }
+
+    var dealCompleto = this.getDealById_(dealResumo.id);
+    var campos = this.extractFields_(dealCompleto, setor);
+
+    return {
+      row: row,
+      imovel: imovel,
+      setor: setor,
+      ok: true,
+      dealId: dealResumo.id,
+      campos: campos
+    };
+  }
+
+  testAllDeals() {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(this.config.SHEET_NAME);
+
+    if (!sheet) {
+      throw new Error('A aba "' + this.config.SHEET_NAME + '" não foi encontrada.');
+    }
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      Logger.log('Nenhuma linha para testar.');
+      return [];
+    }
+
+    var resultados = [];
+
+    for (var row = 2; row <= lastRow; row++) {
+      try {
+        var resultado = this.testRow_(sheet, row);
+        if (resultado) resultados.push(resultado);
+      } catch (e) {
+        resultados.push({
+          row: row,
+          ok: false,
+          erro: e.message
+        });
+      }
+    }
+
+    this.logResults_(resultados);
+    return resultados;
+  }
+
+  logResults_(resultados) {
+    Logger.log('===== TESTE DE DEALS =====');
+
+    resultados.forEach(function(r) {
+      if (!r.ok) {
+        Logger.log(
+          '\n[ERRO] Linha ' + r.row +
+          '\nImóvel: ' + (r.imovel || '-') +
+          '\nSetor: ' + (r.setor || '-') +
+          '\nMotivo: ' + r.erro +
+          '\n------------------------'
+        );
+        return;
+      }
+
+      Logger.log('\n========================');
+      Logger.log('Linha: ' + r.row);
+      Logger.log('Imóvel: ' + r.imovel);
+      Logger.log('Setor: ' + (r.setor || '-'));
+      Logger.log('Deal ID: ' + r.dealId);
+      Logger.log('--- CAMPOS EXTRAÍDOS ---');
+
+      var campos = r.campos;
+      Object.keys(campos).forEach(function(k) {
+        Logger.log(k + ': ' + campos[k]);
+      });
+
+      Logger.log('========================\n');
+    });
+
+    Logger.log('===== FIM DO TESTE =====');
+  }
+}

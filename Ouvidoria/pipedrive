@@ -1,0 +1,253 @@
+function pdProps_() {
+  var p = PropertiesService.getScriptProperties();
+  var baseUrl = String(p.getProperty('BASE_URL') || '').trim();
+  var token = String(p.getProperty('PIPEDRIVE_TOKEN') || '').trim();
+  if (!baseUrl || !token) throw new Error('Faltam BASE_URL ou PIPEDRIVE_TOKEN nas Script Properties.');
+  baseUrl = baseUrl.replace(/\/+$/, '');
+  if (!/\/v1$/i.test(baseUrl)) baseUrl = baseUrl + '/v1';
+  return { baseUrl: baseUrl, token: token };
+}
+
+function toQueryString_(obj) {
+  var parts = [];
+  for (var k in obj) {
+    if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+    if (obj[k] === undefined || obj[k] === null) continue;
+    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(obj[k])));
+  }
+  return parts.join('&');
+}
+
+function pdRequest_(method, path, params, payload) {
+  var props = pdProps_();
+  var allParams = Object.assign({}, params || {}, { api_token: props.token });
+  // Regra: código do imóvel = "N/A" significa preenchimento 100% manual.
+  // Nesse caso, não pode haver nenhuma tentativa de consulta ao Pipedrive relacionada ao imóvel.
+  // Proteção adicional: bloqueia chamadas de search por term quando term é "N/A".
+  try {
+    var term = allParams && allParams.term !== undefined ? String(allParams.term || '').trim() : '';
+    if (term && typeof isCodigoImovelManual_ === 'function' && isCodigoImovelManual_(term)) {
+      Logger.log('Ouvidoria | Pipedrive search bloqueado (código do imóvel = "N/A"). path=' + path);
+      // Mantém o shape esperado por quem chama /deals/search: { data: { items: [] } }
+      return { success: true, data: { items: [] } };
+    }
+  } catch (_) {}
+  var qs = toQueryString_(allParams);
+  var url = props.baseUrl + path + (qs ? ('?' + qs) : '');
+  var safeUrl = url.replace(/api_token=[^&]+/i, 'api_token=***');
+
+  var options = { method: method, muteHttpExceptions: true, followRedirects: true };
+  if (payload !== undefined) {
+    options.contentType = 'application/json';
+    options.payload = JSON.stringify(payload);
+  }
+
+  var res = null;
+  var lastErr = null;
+
+  for (var attempt = 0; attempt < 3; attempt++) {
+    try {
+      res = UrlFetchApp.fetch(url, options);
+      lastErr = null;
+      break;
+    } catch (e) {
+      lastErr = e;
+      Utilities.sleep(400 * (attempt + 1));
+    }
+  }
+
+  if (!res) throw new Error('Pipedrive fetch failed: ' + safeUrl + ' | ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
+
+  var code = res.getResponseCode();
+  var text = res.getContentText();
+  var json;
+
+  try {
+    json = JSON.parse(text || '{}');
+  } catch (e) {
+    throw new Error('Pipedrive non-JSON (' + code + '): ' + text);
+  }
+
+  if (code >= 400 || !json || json.success !== true) {
+    throw new Error('Pipedrive error (' + code + '): ' + text);
+  }
+
+  return json;
+}
+
+function pdGet_(path, params) {
+  return pdRequest_('get', path, params || {}, undefined).data || null;
+}
+
+function pdPost_(path, payload) {
+  return pdRequest_('post', path, {}, payload).data || null;
+}
+
+function pdFindDealByPropertyCode_(imovelCode) {
+  var term = String(imovelCode || '').trim();
+  if (isCodigoImovelManual_ && isCodigoImovelManual_(term)) return null;
+  if (!term) return null;
+
+  var data = pdGet_('/deals/search', { term: term, limit: 10 });
+  var items = data && data.items ? data.items : [];
+  if (!items.length) return null;
+
+  var target = normalizeTextPd_(term);
+  var best = null;
+
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i] && items[i].item ? items[i].item : null;
+    if (!it) continue;
+    var title = normalizeTextPd_(String(it.title || it.name || ''));
+    if (title && title === target) return it;
+    if (!best) best = it;
+  }
+
+  return best;
+}
+
+function pdGetDealById_(dealId) {
+  return pdGet_('/deals/' + encodeURIComponent(String(dealId)), {});
+}
+
+function pdCreateActivity_(payload) {
+  return pdPost_('/activities', payload);
+}
+
+function pdGetActivitiesByDealId_(dealId) {
+  var all = [];
+  var start = 0;
+  var limit = 100;
+
+  while (true) {
+    var json = pdRequest_('get', '/activities', { deal_id: dealId, start: start, limit: limit }, undefined);
+    var data = json && json.data ? json.data : [];
+    if (!Array.isArray(data) || data.length === 0) break;
+
+    all = all.concat(data);
+
+    var pag = json.additional_data && json.additional_data.pagination ? json.additional_data.pagination : {};
+    if (!pag.more_items_in_collection) break;
+
+    start = Number(pag.next_start || (start + limit));
+    if (!start || start > 5000) break;
+  }
+
+  return all;
+}
+
+function pdGetActivityById_(activityId) {
+  return pdGet_('/activities/' + encodeURIComponent(String(activityId)), {});
+}
+
+function pdGetActivityTypes_() {
+  return pdGet_('/activityTypes', {});
+}
+
+function pdGetActivityTypesCached_() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('pd_activity_types_v1');
+  if (cached) {
+    try {
+      var parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (_) {}
+  }
+
+  var types = pdGetActivityTypes_() || [];
+  try { cache.put('pd_activity_types_v1', JSON.stringify(types), 21600); } catch (_) {}
+  return types;
+}
+
+function pdResolveActivityTypeKeyById_(typeId) {
+  var idNum = Number(typeId);
+  if (!idNum) return null;
+
+  var types = pdGetActivityTypesCached_();
+  for (var i = 0; i < types.length; i++) {
+    var t = types[i] || {};
+    if (Number(t.id) === idNum) {
+      var keyString = t.key_string || t.keyString || t.key || t.type || t.api_key || t.slug;
+      return keyString ? String(keyString) : null;
+    }
+  }
+  return null;
+}
+
+function pdResolveActivityTypeKeyByName_(name) {
+  var target = normalizeTextPd_(name);
+  var types = pdGetActivityTypesCached_() || [];
+
+  for (var i = 0; i < types.length; i++) {
+    var t = types[i] || {};
+    var n = t.name || t.label || '';
+    if (normalizeTextPd_(n) === target) {
+      var keyString = t.key_string || t.keyString || t.key || t.type || t.api_key || t.slug;
+      return keyString ? String(keyString) : null;
+    }
+  }
+  return null;
+}
+
+function pdDealHasOuvidoriaRowId_(dealId, rowId, titles, assigneeUserId) {
+  var acts = pdGetActivitiesByDealId_(dealId);
+  if (!acts || !acts.length) return false;
+
+  var wantedTitle = {};
+  for (var i = 0; i < titles.length; i++) wantedTitle[String(titles[i]).trim()] = true;
+
+  var baseMarker = 'ID DA LINHA: ' + String(rowId).trim();
+  var marker = assigneeUserId ? (baseMarker + '\nASSIGNEE: ' + String(assigneeUserId).trim()) : baseMarker;
+
+  for (var j = 0; j < acts.length; j++) {
+    var a = acts[j] || {};
+    var subj = a.subject ? String(a.subject).trim() : '';
+    if (!wantedTitle[subj]) continue;
+
+    if (a.note && String(a.note).indexOf(marker) !== -1) return true;
+
+    if (a.id) {
+      var full = pdGetActivityById_(a.id);
+      if (full && full.note && String(full.note).indexOf(marker) !== -1) return true;
+    }
+  }
+
+  return false;
+}
+
+function pdFindUserIdByName_(name) {
+  var term = String(name || '').replace(/\s+/g, ' ').trim();
+  if (!term) return null;
+
+  var cache = CacheService.getScriptCache();
+  var key = 'pd_user_find:' + normalizeTextPd_(term);
+  var cached = cache.get(key);
+  if (cached) {
+    var n = Number(cached);
+    return n ? n : null;
+  }
+
+  var data = pdGet_('/users/find', { term: term, limit: 10 });
+  var list = Array.isArray(data) ? data : (data && data.items ? data.items : []);
+  var best = null;
+  var target = normalizeTextPd_(term);
+
+  for (var i = 0; i < list.length; i++) {
+    var it = list[i] && (list[i].item || list[i].user || list[i]) ? (list[i].item || list[i].user || list[i]) : null;
+    if (!it) continue;
+    var nm = normalizeTextPd_(String(it.name || it.email || ''));
+    if (nm === target && it.id) { best = it; break; }
+    if (!best && it.id) best = it;
+  }
+
+  var id = best && best.id ? Number(best.id) : null;
+  if (id) {
+    try { cache.put(key, String(id), 21600); } catch (_) {}
+  }
+  return id;
+}
+
+function normalizeTextPd_(s) {
+  var x = String(s || '').trim().toLowerCase();
+  try { return x.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) { return x; }
+}

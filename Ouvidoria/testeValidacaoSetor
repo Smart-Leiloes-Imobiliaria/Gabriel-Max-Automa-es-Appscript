@@ -1,0 +1,66 @@
+function testarValidacaoLinhaComLog() {
+const sheet = _getSheetOuvidoria();
+  const row   = 3;
+
+  Logger.log("═══════════════════════════════════════");
+  Logger.log(`🚀 TESTE COMPLETO - LINHA ${row}`);
+  Logger.log("═══════════════════════════════════════");
+
+  const setorOriginal = _lerCelula(sheet, row, COL_SETOR);
+  const codigoImovel  = _lerCelula(sheet, row, COL_CODIGO_IMOVEL);
+  const setorNorm     = _normalizarTexto(setorOriginal);
+
+  Logger.log("📄 DADOS DA PLANILHA:");
+  Logger.log(`Setor (original): "${setorOriginal}" | normalizado: "${setorNorm}"`);
+  Logger.log(`Código do imóvel: "${codigoImovel}"`);
+
+  Logger.log("🔎 Buscando deal no Pipedrive...");
+  const deal = _buscarDealPorCodigoImovel(codigoImovel);
+
+  if (!deal) {
+    Logger.log("❌ Deal NÃO encontrado.");
+    return;
+  }
+
+  Logger.log(`✅ Deal encontrado | ID: ${deal.id} | Título: ${deal.title}`);
+
+  const parceiro        = _resolverOpcao(deal, CAMPO_PARCEIRO);
+  const proprietario    = _resolverProprietario(deal);
+  const execContrato    = _resolverOpcao(deal, CAMPO_EXECUTOR_CONTRATO);
+  const iptu            = _resolverOpcao(deal, CAMPO_ATRIBUIDO_IPTU);
+  const condominio      = _resolverOpcao(deal, CAMPO_ATRIBUIDO_COND);
+  const desocupacao     = _resolverOpcao(deal, CAMPO_ATRIBUIDO_DESOC);
+
+  Logger.log("📦 DADOS EXTRAÍDOS DO PIPE:");
+  Logger.log(`Parceiro Responsável : ${parceiro}`);
+  Logger.log(`Proprietário         : ${proprietario}`);
+  Logger.log(`Executor: Contrato   : ${execContrato} (norm: "${_normalizarTexto(execContrato)}")`);
+  Logger.log(`Atribuído IPTU       : ${iptu}`);
+  Logger.log(`Atribuído Condomínio : ${condominio}`);
+  Logger.log(`Atribuído Desocupação: ${desocupacao}`);
+
+  Logger.log("🧠 APLICANDO REGRA DE NEGÓCIO...");
+  const resultado = _definirExecutorEAtividade(deal, setorOriginal);
+
+  if (!resultado) {
+    Logger.log(`❌ Setor "${setorOriginal}" (norm: "${setorNorm}") não mapeado.`);
+    return;
+  }
+Logger.log("🎯 RESULTADO FINAL:");
+Logger.log(`Executor                  : ${resultado.executor}`);
+Logger.log(`Tipo Executor             : ${resultado.tipoExecutor}`);
+Logger.log(`Responsável Atividade     : ${resultado.responsavelAtividade}`);
+Logger.log(`Tipo Resp. Atividade      : ${resultado.tipoResponsavelAtividade}`);
+Logger.log(`R final                   : ${resultado.responsavelAtividade}`);
+Logger.log(`S final                   : ${_formatarExecutor(resultado.executor, resultado.tipoExecutor)}`);
+
+
+
+
+  _gravarResultado(sheet, row, resultado);
+  Logger.log("✅ Resultado gravado na planilha (R e S)");
+
+  Logger.log("═══════════════════════════════════════");
+  Logger.log("🏁 FIM DO TESTE");
+  Logger.log("═══════════════════════════════════════");
+}
