@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.next_protocol(text) TO authenticated;

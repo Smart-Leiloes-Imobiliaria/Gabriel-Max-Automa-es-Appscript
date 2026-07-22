@@ -1,0 +1,1 @@
+ALTER TABLE public.property_treatments ADD COLUMN IF NOT EXISTS e_notariado_link text;

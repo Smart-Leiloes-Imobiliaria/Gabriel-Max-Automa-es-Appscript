@@ -1,0 +1,6 @@
+project_id = "jifowcxffhgdrlokiawu"
+[functions.enviar-mensagem-chatapp]
+verify_jwt = false
+
+[functions.pipedrive-criar-atividade]
+verify_jwt = false

@@ -1,0 +1,288 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+.page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(135deg, #0c2340, #14365f);
+  font-family: "Poppins", sans-serif;
+  padding: 20px;
+}
+
+.container {
+  position: relative;
+  width: 100%;
+  max-width: 980px;
+  height: 640px;
+  background: #fff;
+  border-radius: 30px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.container h1 {
+  font-size: 32px;
+  margin: -4px 0 8px;
+  font-weight: 700;
+}
+
+.container p {
+  font-size: 14px;
+  margin: 10px 0;
+}
+
+.formBox {
+  position: absolute;
+  right: 0;
+  width: 50%;
+  height: 100%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  color: #333;
+  text-align: center;
+  padding: 40px;
+  z-index: 1;
+  transition: right .6s ease-in-out 1.2s, visibility 0s 1s;
+}
+
+.container.active .formBox {
+  right: 50%;
+  transition: right .6s ease-in-out 1.2s, visibility 0s 1s;
+}
+
+.formBox.register {
+  visibility: hidden;
+}
+.container.active .formBox.register {
+  visibility: visible;
+}
+
+.formScroll {
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.formScroll::-webkit-scrollbar { width: 6px; }
+.formScroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 8px; }
+
+.inputBox {
+  position: relative;
+  margin: 18px 0;
+  text-align: left;
+}
+
+.inputBox input,
+.inputBox select {
+  width: 100%;
+  padding: 13px 20px;
+  background: #eee;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: #333;
+  font-weight: 500;
+  font-family: inherit;
+}
+
+.inputBox input::placeholder {
+  color: #888;
+  font-weight: 400;
+}
+
+.inputLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.helpText {
+  font-size: 11px;
+  color: #888;
+  margin-top: 6px;
+  text-align: left;
+}
+
+.btn {
+  width: 100%;
+  height: 48px;
+  background: #0c2340;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(12, 35, 64, 0.35);
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #fff;
+  font-weight: 600;
+  font-family: inherit;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.btn:hover { transform: translateY(-1px); background: #14365f; }
+.btn:disabled { opacity: .7; cursor: not-allowed; }
+
+.roleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+.roleGrid.cols2 { grid-template-columns: repeat(2, 1fr); }
+.roleGrid.cols4 { grid-template-columns: repeat(4, 1fr); }
+
+.roleCard {
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1.5px solid #e5e5e5;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: all .15s ease;
+  font-family: inherit;
+}
+.roleCard:hover { border-color: #0c2340; }
+.roleCard.active {
+  border-color: #0c2340;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(12, 35, 64, .15);
+}
+.roleCardTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #222;
+}
+.roleCardDesc {
+  font-size: 10.5px;
+  color: #777;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+.toggleBox {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.toggleBox::before {
+  content: '';
+  position: absolute;
+  left: -250%;
+  width: 300%;
+  height: 100%;
+  background: linear-gradient(135deg, #081a30, #14365f);
+  border-radius: 150px;
+  z-index: 2;
+  transition: 1.8s ease-in-out;
+}
+.container.active .toggleBox::before { left: 50%; }
+
+.togglePanel {
+  position: absolute;
+  width: 50%;
+  height: 100%;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  z-index: 2;
+  transition: .6s ease-in-out;
+  text-align: center;
+}
+
+.toggleLeft { left: 0; transition-delay: 1.2s; }
+.container.active .toggleLeft { left: -50%; transition-delay: .6s; }
+
+.toggleRight { right: -50%; transition-delay: .6s; }
+.container.active .toggleRight { right: 0; transition-delay: 1.2s; }
+
+.togglePanel h1 { color: #fff; }
+.togglePanel p { margin-bottom: 20px; opacity: .95; }
+
+.togglePanel .btn {
+  width: 180px;
+  height: 46px;
+  background: transparent;
+  border: 2px solid #fff;
+  box-shadow: none;
+}
+.togglePanel .btn:hover { background: rgba(255,255,255,.12); }
+
+.brandLogo {
+  width: 220px;
+  max-width: 80%;
+  height: auto;
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  background: #0f172a;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+
+.brandSub {
+  font-size: 12px;
+  opacity: .9;
+  margin-top: -8px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+@media screen and (max-width: 820px) {
+  .container { height: calc(100vh - 40px); }
+
+  .formBox {
+    bottom: 0;
+    right: 0;
+    width: 100%;
+    height: 70%;
+    padding: 28px;
+  }
+  .container.active .formBox {
+    right: 0;
+    bottom: 30%;
+  }
+
+  .toggleBox::before {
+    left: 0;
+    top: -270%;
+    width: 100%;
+    height: 300%;
+    border-radius: 20vw;
+  }
+  .container.active .toggleBox::before {
+    left: 0;
+    top: 70%;
+  }
+
+  .togglePanel {
+    width: 100%;
+    height: 30%;
+    padding: 20px;
+  }
+  .toggleLeft { top: 0; left: 0; }
+  .toggleRight { right: 0; bottom: -30%; }
+  .container.active .toggleLeft { left: 0; top: -30%; }
+  .container.active .toggleRight { bottom: 0; }
+
+  .brandLogo { width: 140px; margin-bottom: 8px; }
+  .container h1 { font-size: 24px; }
+}
+
+@media screen and (max-width: 420px) {
+  .formBox { padding: 18px; }
+  .togglePanel h1 { font-size: 22px; }
+  .roleGrid { grid-template-columns: repeat(2, 1fr) !important; }
+}
