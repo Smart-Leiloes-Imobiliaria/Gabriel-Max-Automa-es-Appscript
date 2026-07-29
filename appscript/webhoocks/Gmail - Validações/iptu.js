@@ -256,7 +256,7 @@ function cefDevolutivaValidarFluxoCompletoEmail_(message, executar) {
     messageDate: cefDevolutivaNormalizePipedriveDate_(message.getDate()),
     from: from,
     labels: labelNames,
-    mode: atesteEntry ? 'primeiro_ateste_com_atividade' : 'devolutiva_com_atividade',
+    mode: atesteEntry ? 'primeiro_ateste_somente_data' : 'devolutiva_com_atividade',
     validations: {
       eligibleMessage: eligible,
       temporalEligible: temporalEligible,
@@ -299,8 +299,6 @@ function cefDevolutivaPrevalidarFluxoPrimeiroAteste_(result, subject, from, body
   const propertyCode = cefDevolutivaExtractPropertyCode_(subject, body)
   const config = cefDevolutivaGetPrimeiroAtesteFieldConfig_(relation)
   let deal = null
-  let ownerResolution = null
-  let alreadyHasActivity = false
   let currentAtesteDate = ''
   let arrivalDate = ''
   let patch = {}
@@ -325,12 +323,6 @@ function cefDevolutivaPrevalidarFluxoPrimeiroAteste_(result, subject, from, body
     if (!deal || !deal.id) {
       result.errors.push('deal_not_found')
     } else if (config) {
-      ownerResolution = cefDevolutivaResolveActivityOwnerUserId_(deal, relation)
-      if (!ownerResolution.userId) {
-        result.errors.push('activity_owner_not_resolved')
-      } else {
-        alreadyHasActivity = cefDevolutivaActivityExists_(deal.id, ownerResolution.userId, messageId)
-      }
       currentAtesteDate = cefDevolutivaGetDealFieldValue_(deal, config.atesteFieldKey)
       arrivalDate = cefDevolutivaNormalizePipedriveDate_(cefDevolutivaGetDealFieldValue_(deal, config.chegadaFieldKey)) ||
         cefDevolutivaNormalizePipedriveDate_(result.messageDate || '')
@@ -346,17 +338,8 @@ function cefDevolutivaPrevalidarFluxoPrimeiroAteste_(result, subject, from, body
     title: deal && deal.title ? deal.title : ''
   }
   result.activity = {
-    expected: !!(
-      deal && deal.id &&
-      ownerResolution && ownerResolution.userId &&
-      cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate) &&
-      arrivalDate &&
-      !alreadyHasActivity
-    ),
-    alreadyExists: alreadyHasActivity,
-    ownerResolution: ownerResolution || {},
-    subject: CEF_DEVOLUTIVA_ACTIVITY_SUBJECT_,
-    type: cefDevolutivaGetActivityTypeConfig_(relation)
+    expected: false,
+    skipped: 'not_created_for_first_ateste'
   }
   result.fields = config ? {
     chegadaFieldKey: config.chegadaFieldKey,
@@ -439,16 +422,13 @@ function cefDevolutivaExecutarEVerificarFluxo_(message, prevalidation) {
   }
 
   try {
-    if (prevalidation.mode === 'primeiro_ateste_com_atividade') {
+    if (prevalidation.mode === 'primeiro_ateste_somente_data') {
       output.verification = cefDevolutivaVerifyPrimeiroAtesteFull_(
         prevalidation.deal && prevalidation.deal.id,
         prevalidation.expense && prevalidation.expense.relation,
         prevalidation.fields && prevalidation.fields.atesteFieldKey,
         prevalidation.fields && prevalidation.fields.arrivalDate,
-        prevalidation.fields && prevalidation.fields.currentAtesteFilled,
-        prevalidation.activity && prevalidation.activity.ownerResolution && prevalidation.activity.ownerResolution.userId,
-        prevalidation.messageId,
-        output.processamento && output.processamento.activityId
+        prevalidation.fields && prevalidation.fields.currentAtesteFilled
       )
     } else {
       output.verification = cefDevolutivaVerifyDevolutivaFull_(
@@ -492,15 +472,13 @@ function cefDevolutivaVerifyDevolutivaFull_(dealId, relation, ownerUserId, messa
   }
 }
 
-function cefDevolutivaVerifyPrimeiroAtesteFull_(dealId, relation, fieldKey, expectedDate, alreadyFilledBefore, ownerUserId, messageId, activityId) {
+function cefDevolutivaVerifyPrimeiroAtesteFull_(dealId, relation, fieldKey, expectedDate, alreadyFilledBefore) {
   if (!dealId || !relation || !fieldKey) return { ok: false, error: 'missing_deal_relation_or_field' }
   const freshDeal = cefDevolutivaCallPipedrive_('deals/' + encodeURIComponent(String(dealId)), 'GET', null)
   const primeiroAtesteDate = cefDevolutivaVerifyPrimeiroAtestePatchFromDeal_(freshDeal, fieldKey, expectedDate, alreadyFilledBefore)
-  const activity = alreadyFilledBefore
-    ? { ok: true, skipped: 'not_expected_when_first_ateste_already_filled' }
-    : cefDevolutivaVerifyActivity_(dealId, ownerUserId, messageId, activityId)
+  const activity = { ok: true, skipped: 'not_created_for_first_ateste' }
   return {
-    ok: primeiroAtesteDate.ok === true && activity.ok === true,
+    ok: primeiroAtesteDate.ok === true,
     dealId: dealId,
     relation: relation,
     dealStatus: { ok: true, skipped: 'not_expected_for_ateste' },
@@ -927,24 +905,6 @@ function cefDevolutivaProcessarPrimeiroAteste_(message, messageId, subject, from
     return { ok: true, skipped: 'invalid_relation_for_first_ateste', dealId: deal.id, propertyCode: propertyCode }
   }
 
-  const classification = { valid: true, relation: relation, source: expenseInfo.source }
-  const ownerResolution = cefDevolutivaResolveActivityOwnerUserId_(deal, relation)
-  const ownerUserId = ownerResolution.userId
-  if (!ownerUserId) {
-    cefDevolutivaLog_('ERROR', deal.id, subject, 'activity_owner_not_resolved', {
-      messageId: messageId,
-      from: from,
-      propertyCode: propertyCode,
-      relation: relation,
-      ownerResolution: ownerResolution
-    })
-    cefDevolutivaMarkError_(messageId, 'activity_owner_not_resolved:' + propertyCode)
-    return { ok: false, error: 'activity_owner_not_resolved', dealId: deal.id, propertyCode: propertyCode, relation: relation }
-  }
-
-  let alreadyHasActivity = false
-  let activity = null
-  let activityId = ''
   const patch = {}
   let arrivalDate = ''
 
@@ -954,9 +914,6 @@ function cefDevolutivaProcessarPrimeiroAteste_(message, messageId, subject, from
       messageId: messageId,
       propertyCode: propertyCode,
       relation: relation,
-      ownerUserId: ownerUserId,
-      activityId: '',
-      skippedActivity: true,
       fieldKey: config.atesteFieldKey,
       fieldName: config.atesteFieldName,
       currentValue: currentAtesteDate
@@ -967,8 +924,6 @@ function cefDevolutivaProcessarPrimeiroAteste_(message, messageId, subject, from
       relation: relation,
       despesa: despesa,
       fieldKey: config.atesteFieldKey,
-      activityId: '',
-      skippedActivity: true,
       firstAtesteAlreadyFilled: true
     }, message)
     return {
@@ -978,19 +933,13 @@ function cefDevolutivaProcessarPrimeiroAteste_(message, messageId, subject, from
       dealId: deal.id,
       propertyCode: propertyCode,
       relation: relation,
-      activityId: '',
-      skippedActivity: true
+      firstAtesteAlreadyFilled: true
     }
   } else {
     arrivalDate = cefDevolutivaNormalizePipedriveDate_(cefDevolutivaGetDealFieldValue_(deal, config.chegadaFieldKey)) ||
       cefDevolutivaNormalizePipedriveDate_(message.getDate())
     if (arrivalDate) {
       patch[config.atesteFieldKey] = arrivalDate
-      alreadyHasActivity = cefDevolutivaActivityExists_(deal.id, ownerUserId, messageId)
-      if (!alreadyHasActivity) {
-        activity = cefDevolutivaCreateActivity_(deal.id, ownerUserId, messageId, propertyCode, classification)
-      }
-      activityId = cefDevolutivaExtractActivityId_(activity)
     } else {
       cefDevolutivaLog_('NAO', deal.id, subject, 'arrival_date_not_found', {
         messageId: messageId,
@@ -1015,8 +964,6 @@ function cefDevolutivaProcessarPrimeiroAteste_(message, messageId, subject, from
     despesa: despesa,
     arrivalDate: arrivalDate,
     fieldKey: config.atesteFieldKey,
-    activityId: activityId,
-    skippedActivity: alreadyHasActivity || !cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate),
     firstAtesteAlreadyFilled: !cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate)
   }, message)
 
@@ -1026,9 +973,6 @@ function cefDevolutivaProcessarPrimeiroAteste_(message, messageId, subject, from
     propertyCode: propertyCode,
     relation: relation,
     despesa: despesa,
-    ownerUserId: ownerUserId,
-    activityId: activityId,
-    skippedActivity: alreadyHasActivity || !cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate),
     arrivalDate: arrivalDate,
     firstAtesteAlreadyFilled: !cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate),
     patch: patch
@@ -1040,8 +984,7 @@ function cefDevolutivaProcessarPrimeiroAteste_(message, messageId, subject, from
     dealId: deal.id,
     propertyCode: propertyCode,
     relation: relation,
-    activityId: activityId,
-    skippedActivity: alreadyHasActivity || !cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate)
+    firstAtesteAlreadyFilled: !cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate)
   }
 }
 
