@@ -1,0 +1,1969 @@
+const CEF_DEVOLUTIVA_ACTIVITY_SUBJECT_ = 'Orientar cliente sobre devolutiva da CEF'
+const CEF_DEVOLUTIVA_ACTIVITY_NOTE_ = 'Entrar em contato com o cliente para orientar quanto à resolução da devolutiva apresentada pela CEF.'
+const CEF_DEVOLUTIVA_PROCESSED_PROP_PREFIX_ = 'CEF_DEVOLUTIVA_GMAIL_PROCESSED_'
+const CEF_DEVOLUTIVA_ERROR_PROP_PREFIX_ = 'CEF_DEVOLUTIVA_GMAIL_ERROR_'
+const CEF_DEVOLUTIVA_PROCESSED_LABEL_ = 'Automação-processada'
+const CEF_DEVOLUTIVA_IGNORE_PROCESSED_FOR_TESTS_ = false
+const CEF_DEVOLUTIVA_THREAD_PAGE_SIZE_ = 50
+const CEF_DEVOLUTIVA_MAX_THREADS_PER_RUN_ = 500
+const CEF_DEVOLUTIVA_DUE_BUSINESS_DAYS_ = 3
+const CEF_DEVOLUTIVA_IGNORE_PROCESS_DATE_TEMP_ = false
+const CEF_DEVOLUTIVA_PROCESS_FROM_DATE_ = new Date(2026, 5, 8)
+const CEF_DEVOLUTIVA_UNIFIED_FLOW_ = true
+const CEF_DEVOLUTIVA_CANONICAL_SOURCE_ = 'gmail'
+
+
+const CEF_DEVOLUTIVA_NUMERO_IMOVEL_FIELD_KEY_ = '5c3aac951d1281021e01c13aa7a11a449efeabd1'
+const CEF_DEVOLUTIVA_STATUS_IPTU_FIELD_KEY_ = 'f6e1f351857746dc37fbf68c57946dc98a8a5d65'
+const CEF_DEVOLUTIVA_STATUS_CONDOMINIO_FIELD_KEY_ = '461e0cdbd44a14f71c52650abb12bdd17d5bac7a'
+const CEF_DEVOLUTIVA_STATUS_IPTU_PENDENCIA_ID_ = 235
+const CEF_DEVOLUTIVA_STATUS_CONDOMINIO_PENDENCIA_ID_ = 687
+const CEF_DEVOLUTIVA_PRIORITY_FIELD_KEY_ = 'priority'
+const CEF_DEVOLUTIVA_PRIORITY_MEDIUM_ID_ = 26
+const CEF_DEVOLUTIVA_TAG_IPTU_KEY_ = 'condominio'
+const CEF_DEVOLUTIVA_TAG_IPTU_ID_ = 12
+const CEF_DEVOLUTIVA_TAG_CONDOMINIO_KEY_ = 'condominio1'
+const CEF_DEVOLUTIVA_TAG_CONDOMINIO_ID_ = 14
+const CEF_DEVOLUTIVA_ATRIBUIDO_IPTU_FIELD_KEY_ = '0fcbf77e257f7fd8665f159af46fdb56885b91f4'
+const CEF_DEVOLUTIVA_ATRIBUIDO_CONDOMINIO_FIELD_KEY_ = '4dc70e8904db7e180a7b8faa20c074f6f4351dd8'
+const CEF_DEVOLUTIVA_INI_IPTU_FIELD_KEY_ = 'd45dce63cd44cea8eaeb78c2dc558527c49c07e1'
+const CEF_DEVOLUTIVA_INI_CONDOMINIO_FIELD_KEY_ = 'ef52f41da4e2bc241da4bd1ab6c7a5940d0cfe2d'
+const CEF_DEVOLUTIVA_ATESTE_IPTU_DATA_FIELD_KEY_ = '1463f7080f9572cd2bf480362a1e917c008460e8'
+const CEF_DEVOLUTIVA_ATESTE_CONDOMINIO_DATA_FIELD_KEY_ = '0d9c4aab2ee0bd18d78fb1fd3b32f403f0642eb2'
+
+const CEF_DEVOLUTIVA_REL_IPTU_ = 'DÉBITOS/IPTU'
+const CEF_DEVOLUTIVA_REL_CONDOMINIO_ = 'DÉBITOS/CONDOMÍNIO'
+const CEF_DEVOLUTIVA_ENTRY_LABELS_ = [
+  'DÉBITOS/CONDOMÍNIO/Análise Documental CEF',
+  'DÉBITOS/CONDOMÍNIO/Ateste de pagamento ID'
+]
+
+const CEF_DEVOLUTIVA_ATRIBUIDO_IPTU_OPTIONS_ = {
+  876: 'n/a',
+  867: 'Ana Carolina',
+  1522: 'Ana Duarte',
+  1021: 'Ana Oliveira',
+  557: 'Bianca Neubaner',
+  1793: 'Caroline',
+  558: 'Daniel',
+  1430: 'Gabriel Amaro',
+  794: 'Gabriella Campos',
+  460: 'Geovana Rita',
+  559: 'Hana',
+  561: 'Higor',
+  923: 'Isabelle França',
+  1029: 'Jessica Gomes',
+  678: 'João Moraes',
+  1795: 'Julia Faria',
+  699: 'Julia Luize',
+  461: 'Kiara',
+  858: 'Letícia',
+  462: 'Lucas Miranda',
+  1431: 'Lucas Tolentino',
+  463: 'Luiza Cavalcanti',
+  845: 'Maria Gomes',
+  656: 'Pierre',
+  560: 'Rafaela',
+  464: 'Raíssa',
+  1125: 'Stephane Martins',
+  466: 'Thiago',
+  601: 'Vitor',
+  1548: 'Nathalia Rezende',
+  1633: 'Emily Sousa',
+  1749: 'Triagem',
+  1957: 'Hevilly Silva',
+  2134: 'Jean Valle',
+  2217: 'Alessandra Oliveira',
+  2489: 'Júlia Bastos'
+}
+
+const CEF_DEVOLUTIVA_ATRIBUIDO_CONDOMINIO_OPTIONS_ = {
+  878: 'n/a',
+  1807: 'Amanda Santos',
+  868: 'Ana Carolina',
+  1022: 'Ana Oliveira',
+  556: 'Bianca Neubaner',
+  1646: 'Clarissa Bomfim',
+  440: 'Daniel',
+  1582: 'Daniel Moreira',
+  1126: 'Darya',
+  1169: 'Davi Parma',
+  795: 'Gabriella Campos',
+  1127: 'Geovani',
+  504: 'Hana Leticia',
+  1506: 'Hellen Agnes',
+  562: 'Higor',
+  1792: 'Igor Rafael',
+  924: 'Isabella',
+  1027: 'Jessica',
+  679: 'João Moraes',
+  700: 'Julia Luize',
+  859: 'Letícia',
+  1429: 'Luara',
+  1586: 'Luisa Bernardino',
+  1805: 'Luiza Braz',
+  554: 'Luiza Cavalcanti',
+  846: 'Maria Gomes',
+  1432: 'Nathalia',
+  657: 'Pierre',
+  442: 'Rafaela',
+  1128: 'Rayssa Caetano',
+  563: 'Thiago',
+  1270: 'Valdileia',
+  503: 'Vitor',
+  1438: 'Stephane Martins',
+  1505: 'Helena Pereira',
+  1507: 'Mariana Vargas',
+  1549: 'Nathalia Rezende',
+  1627: 'Teste (temporário)',
+  1634: 'Emily Sousa',
+  1750: 'Triagem',
+  1876: 'Israel Carmo',
+  1956: 'Hevilly Silva',
+  2053: 'Ana SIlva',
+  2215: 'Isadora',
+  2216: 'Glória Silva',
+  2401: 'Hugo Silva',
+  2402: 'Victor Fernandes',
+  2431: 'Vander Cardoso',
+  2627: 'Lucas Eler',
+  2628: 'Emilly Alves',
+  2754: 'Nubia Bastos'
+}
+
+let CEF_DEVOLUTIVA_PIPEDRIVE_USERS_CACHE_ = null
+
+function processarDevolutivasCefIptuCondominio() {
+  const queries = cefDevolutivaBuildGmailQueries_()
+  const summary = { scanned: 0, processed: 0, skipped: 0, errors: 0 }
+  const seenMessages = {}
+
+  cefDevolutivaScanLabelThreads_(function (message) {
+    const result = processarMensagemDevolutivaCef_(message)
+    if (result && result.ok && result.processed) summary.processed++
+    else if (result && result.ok) summary.skipped++
+    else summary.errors++
+    summary.scanned++
+  }, seenMessages, CEF_DEVOLUTIVA_MAX_THREADS_PER_RUN_)
+
+  for (let q = 0; q < queries.length; q++) {
+    const query = queries[q]
+    for (let start = 0; start < CEF_DEVOLUTIVA_MAX_THREADS_PER_RUN_; start += CEF_DEVOLUTIVA_THREAD_PAGE_SIZE_) {
+      const threads = GmailApp.search(query, start, CEF_DEVOLUTIVA_THREAD_PAGE_SIZE_)
+      if (!threads.length) break
+
+      for (let i = 0; i < threads.length; i++) {
+        const messages = threads[i].getMessages()
+        for (let j = 0; j < messages.length; j++) {
+          const messageId = String(messages[j].getId() || '').trim()
+          if (messageId && seenMessages[messageId]) continue
+          if (messageId) seenMessages[messageId] = true
+          summary.scanned++
+          const result = processarMensagemDevolutivaCef_(messages[j])
+          if (result && result.ok && result.processed) summary.processed++
+          else if (result && result.ok) summary.skipped++
+          else summary.errors++
+        }
+      }
+    }
+  }
+
+  return summary
+}
+
+function cefDevolutivaBuildGmailQuery_() {
+  return cefDevolutivaBuildGmailQueries_()[0]
+}
+
+function cefDevolutivaBuildGmailQueries_() {
+  const dateFilter = CEF_DEVOLUTIVA_IGNORE_PROCESS_DATE_TEMP_
+    ? ''
+    : ' after:' + cefDevolutivaFormatGmailSearchDate_(cefDevolutivaAddDays_(CEF_DEVOLUTIVA_PROCESS_FROM_DATE_, -1))
+  return [
+    'subject:"Análise Documental ID:"',
+    'subject:"Analise Documental ID:"',
+    'subject:"ANÁLISE DOCUMENTAL"',
+    'subject:"ANALISE DOCUMENTAL"',
+    'subject:"Análise Documental"',
+    'subject:"Analise Documental"',
+    'subject:"Ateste de pagamento ID:"',
+    'subject:"ATESTE DE PAGAMENTO"',
+    'subject:"Ateste de pagamento"'
+  ].map(function (query) {
+    return query + dateFilter
+  })
+}
+
+function instalarTriggerDevolutivasCefIptuCondominio() {
+  removerTriggerDevolutivasCefIptuCondominio()
+  ScriptApp.newTrigger('processarDevolutivasCefIptuCondominio')
+    .timeBased()
+    .everyHours(2)
+    .create()
+}
+
+function removerTriggerDevolutivasCefIptuCondominio() {
+  const triggers = ScriptApp.getProjectTriggers()
+  for (let i = 0; i < triggers.length; i++) {
+    if (String(triggers[i].getHandlerFunction() || '') === 'processarDevolutivasCefIptuCondominio') {
+      ScriptApp.deleteTrigger(triggers[i])
+    }
+  }
+}
+
+function testarFluxoCompletoIptuCondominioEmailEspecifico() {
+  const props = PropertiesService.getScriptProperties()
+  const messageId = String(props.getProperty('CEF_DEVOLUTIVA_TEST_MESSAGE_ID') || '').trim()
+  const executar = cefDevolutivaBool_(props.getProperty('CEF_DEVOLUTIVA_TEST_EXECUTE_FLUXO_COMPLETO'))
+  if (!messageId) {
+    throw new Error(
+      'Configure CEF_DEVOLUTIVA_TEST_MESSAGE_ID nas Script Properties. ' +
+      'Por padrão o teste apenas valida; para executar, configure CEF_DEVOLUTIVA_TEST_EXECUTE_FLUXO_COMPLETO=true.'
+    )
+  }
+  const message = cefDevolutivaGetTestMessageById_(messageId)
+  const result = cefDevolutivaValidarFluxoCompletoEmail_(message, executar)
+  Logger.log(JSON.stringify(result, null, 2))
+  return result
+}
+
+function cefDevolutivaGetTestMessageById_(messageId) {
+  try {
+    const message = GmailApp.getMessageById(messageId)
+    if (message) return message
+  } catch (err) {
+    throw new Error(
+      'Mensagem Gmail não encontrada para CEF_DEVOLUTIVA_TEST_MESSAGE_ID=' + messageId +
+      '. Use o ID interno da mensagem do Gmail, não o Message-ID do cabeçalho. Erro original: ' +
+      String(err && err.message ? err.message : err)
+    )
+  }
+  throw new Error('Mensagem Gmail não encontrada para CEF_DEVOLUTIVA_TEST_MESSAGE_ID=' + messageId)
+}
+
+function cefDevolutivaValidarFluxoCompletoEmail_(message, executar) {
+  const messageId = String(message.getId() || '').trim()
+  const subject = String(message.getSubject() || '')
+  const from = String(message.getFrom() || '')
+  const body = cefDevolutivaGetReadableBody_(message)
+  const labelNames = cefDevolutivaGetMessageLabels_(message)
+  const atesteEntry = cefDevolutivaIsAtestePagamentoEntry_(subject, labelNames)
+  const eligible = cefDevolutivaIsEligibleMessage_(subject, labelNames)
+  const temporalEligible = cefDevolutivaMessageIsFromProcessDate_(message)
+  const result = {
+    ok: false,
+    execute: !!executar,
+    messageId: messageId,
+    subject: subject,
+    messageDate: cefDevolutivaNormalizePipedriveDate_(message.getDate()),
+    from: from,
+    labels: labelNames,
+    mode: atesteEntry ? 'primeiro_ateste_somente_data' : 'devolutiva_com_atividade',
+    validations: {
+      eligibleMessage: eligible,
+      temporalEligible: temporalEligible,
+      alreadyProcessed: cefDevolutivaWasProcessedMessage_(message)
+    },
+    errors: []
+  }
+
+  if (!messageId) result.errors.push('empty_message_id')
+  if (!eligible) result.errors.push('missing_entry_rule')
+  if (!temporalEligible) result.errors.push('message_before_process_date')
+
+  if (atesteEntry) {
+    cefDevolutivaPrevalidarFluxoPrimeiroAteste_(result, subject, from, body, labelNames, messageId)
+  } else {
+    cefDevolutivaPrevalidarFluxoDevolutiva_(result, subject, from, body, labelNames, messageId)
+  }
+
+  result.prevalidationOk = result.errors.length === 0
+  result.ok = result.prevalidationOk
+
+  if (executar && result.prevalidationOk) {
+    result.execution = cefDevolutivaExecutarEVerificarFluxo_(message, result)
+    result.ok = result.prevalidationOk && result.execution.ok === true
+  } else if (executar) {
+    result.execution = {
+      ok: false,
+      skipped: 'prevalidation_failed',
+      errors: result.errors.slice(0)
+    }
+  }
+
+  return result
+}
+
+function cefDevolutivaPrevalidarFluxoPrimeiroAteste_(result, subject, from, body, labelNames, messageId) {
+  const expenseInfo = cefDevolutivaExtractAtesteExpenseInfo_(body)
+  const despesa = expenseInfo.value
+  const relation = cefDevolutivaClassifyExpenseText_(despesa)
+  const propertyCode = cefDevolutivaExtractPropertyCode_(subject, body)
+  const config = cefDevolutivaGetPrimeiroAtesteFieldConfig_(relation)
+  let deal = null
+  let currentAtesteDate = ''
+  let arrivalDate = ''
+  let patch = {}
+  const hasCefSource = cefDevolutivaHasCefSource_(subject, from, body, messageId)
+
+  result.expense = {
+    despesa: despesa || '',
+    relation: relation || '',
+    source: expenseInfo.source
+  }
+  result.propertyCode = propertyCode || ''
+
+  if (!hasCefSource) result.errors.push('missing_cef_source')
+  if (!despesa) result.errors.push('despesa_not_found')
+  else if (!relation) result.errors.push('unsupported_despesa')
+  if (!propertyCode) result.errors.push('property_code_not_found')
+  if (relation && !config) result.errors.push('invalid_relation_for_first_ateste')
+  if (hasCefSource && relation && propertyCode && !cefDevolutivaHasPipedriveConfig_()) result.errors.push('pipedrive_config_missing')
+
+  if (hasCefSource && relation && propertyCode && cefDevolutivaHasPipedriveConfig_()) {
+    deal = cefDevolutivaFindDealByPropertyCode_(propertyCode)
+    if (!deal || !deal.id) {
+      result.errors.push('deal_not_found')
+    } else if (config) {
+      currentAtesteDate = cefDevolutivaGetDealFieldValue_(deal, config.atesteFieldKey)
+      arrivalDate = cefDevolutivaNormalizePipedriveDate_(cefDevolutivaGetDealFieldValue_(deal, config.chegadaFieldKey)) ||
+        cefDevolutivaNormalizePipedriveDate_(result.messageDate || '')
+      if (cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate)) {
+        if (arrivalDate) patch[config.atesteFieldKey] = arrivalDate
+        else result.errors.push('arrival_date_not_found')
+      }
+    }
+  }
+
+  result.deal = {
+    id: deal && deal.id ? deal.id : '',
+    title: deal && deal.title ? deal.title : ''
+  }
+  result.activity = {
+    expected: false,
+    skipped: 'not_created_for_first_ateste'
+  }
+  result.fields = config ? {
+    chegadaFieldKey: config.chegadaFieldKey,
+    chegadaFieldName: config.chegadaFieldName,
+    atesteFieldKey: config.atesteFieldKey,
+    atesteFieldName: config.atesteFieldName,
+    currentAtesteDate: currentAtesteDate,
+    currentAtesteFilled: !cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate),
+    arrivalDate: arrivalDate,
+    wouldPatch: Object.keys(patch).length > 0,
+    patch: patch
+  } : {}
+}
+
+function cefDevolutivaPrevalidarFluxoDevolutiva_(result, subject, from, body, labelNames, messageId) {
+  const classification = cefDevolutivaClassify_(subject, from, labelNames, body, messageId)
+  const propertyCode = classification.valid ? cefDevolutivaExtractPropertyCode_(subject, body) : ''
+  let deal = null
+  let ownerResolution = null
+  let alreadyHasActivity = false
+  let patch = {}
+
+  result.expense = {
+    relation: classification.relation || '',
+    source: classification.source || '',
+    classification: classification
+  }
+  result.propertyCode = propertyCode || ''
+
+  if (!classification.valid) result.errors.push(classification.reason || 'invalid_relation')
+  if (classification.valid && !propertyCode) result.errors.push('property_code_not_found')
+  if (classification.valid && propertyCode && !cefDevolutivaHasPipedriveConfig_()) result.errors.push('pipedrive_config_missing')
+
+  if (classification.valid && propertyCode && cefDevolutivaHasPipedriveConfig_()) {
+    deal = cefDevolutivaFindDealByPropertyCode_(propertyCode)
+    if (!deal || !deal.id) {
+      result.errors.push('deal_not_found')
+    } else {
+      ownerResolution = cefDevolutivaResolveActivityOwnerUserId_(deal, classification.relation)
+      if (!ownerResolution.userId) {
+        result.errors.push('activity_owner_not_resolved')
+      } else {
+        alreadyHasActivity = cefDevolutivaActivityExists_(deal.id, ownerResolution.userId, messageId, classification.relation)
+      }
+      patch = cefDevolutivaBuildDealPatch_(classification.relation)
+    }
+  }
+
+  result.deal = {
+    id: deal && deal.id ? deal.id : '',
+    title: deal && deal.title ? deal.title : ''
+  }
+  result.activity = {
+    expected: !!(deal && deal.id && ownerResolution && ownerResolution.userId && !alreadyHasActivity),
+    alreadyExists: alreadyHasActivity,
+    ownerResolution: ownerResolution || {},
+    subject: CEF_DEVOLUTIVA_ACTIVITY_SUBJECT_,
+    type: cefDevolutivaGetActivityTypeConfig_(classification.relation)
+  }
+  result.fields = {
+    expectedStatusAndTagPatch: patch,
+    wouldPatch: Object.keys(patch).length > 0
+  }
+}
+
+function cefDevolutivaExecutarEVerificarFluxo_(message, prevalidation) {
+  const output = { ok: false, processamento: null, verification: null, errors: [] }
+  try {
+    output.processamento = processarMensagemDevolutivaCef_(message)
+  } catch (err) {
+    output.errors.push(String(err && err.message ? err.message : err))
+    return output
+  }
+
+  if (!output.processamento || output.processamento.ok !== true || output.processamento.processed !== true) {
+    output.errors.push(output.processamento && output.processamento.error
+      ? output.processamento.error
+      : (output.processamento && output.processamento.skipped ? 'skipped:' + output.processamento.skipped : 'processing_failed'))
+    return output
+  }
+
+  try {
+    if (prevalidation.mode === 'primeiro_ateste_somente_data') {
+      output.verification = cefDevolutivaVerifyPrimeiroAtesteFull_(
+        prevalidation.deal && prevalidation.deal.id,
+        prevalidation.expense && prevalidation.expense.relation,
+        prevalidation.fields && prevalidation.fields.atesteFieldKey,
+        prevalidation.fields && prevalidation.fields.arrivalDate,
+        prevalidation.fields && prevalidation.fields.currentAtesteFilled
+      )
+    } else {
+      output.verification = cefDevolutivaVerifyDevolutivaFull_(
+        prevalidation.deal && prevalidation.deal.id,
+        prevalidation.expense && prevalidation.expense.relation,
+        prevalidation.activity && prevalidation.activity.ownerResolution && prevalidation.activity.ownerResolution.userId,
+        prevalidation.messageId,
+        output.processamento && output.processamento.activityId
+      )
+    }
+    if (output.verification && output.verification.activity) {
+      output.verification.activity.expectedCreation = !!(prevalidation.activity && prevalidation.activity.expected)
+      output.verification.activity.alreadyExistsBefore = !!(prevalidation.activity && prevalidation.activity.alreadyExists)
+      output.verification.activity.createdNow = !!(output.processamento && output.processamento.activityId)
+      output.verification.activity.creationOk = output.verification.activity.expectedCreation
+        ? output.verification.activity.createdNow
+        : (output.verification.activity.alreadyExistsBefore || !output.verification.activity.createdNow)
+      output.verification.ok = output.verification.ok === true && output.verification.activity.creationOk === true
+    }
+    output.ok = output.verification && output.verification.ok === true
+  } catch (err) {
+    output.errors.push(String(err && err.message ? err.message : err))
+  }
+
+  return output
+}
+
+function cefDevolutivaVerifyDevolutivaFull_(dealId, relation, ownerUserId, messageId, activityId) {
+  if (!dealId || !relation) return { ok: false, error: 'missing_deal_or_relation' }
+  const freshDeal = cefDevolutivaCallPipedrive_('deals/' + encodeURIComponent(String(dealId)), 'GET', null)
+  const dealStatus = cefDevolutivaVerifyDealStatus_(freshDeal, relation)
+  const dealPatch = cefDevolutivaVerifyDealPatch_(freshDeal, relation)
+  const activity = cefDevolutivaVerifyActivity_(dealId, ownerUserId, messageId, activityId, relation)
+  return {
+    ok: dealStatus.ok === true && activity.ok === true,
+    dealId: dealId,
+    relation: relation,
+    dealStatus: dealStatus,
+    dealPatch: dealPatch,
+    activity: activity
+  }
+}
+
+function cefDevolutivaVerifyPrimeiroAtesteFull_(dealId, relation, fieldKey, expectedDate, alreadyFilledBefore) {
+  if (!dealId || !relation || !fieldKey) return { ok: false, error: 'missing_deal_relation_or_field' }
+  const freshDeal = cefDevolutivaCallPipedrive_('deals/' + encodeURIComponent(String(dealId)), 'GET', null)
+  const primeiroAtesteDate = cefDevolutivaVerifyPrimeiroAtestePatchFromDeal_(freshDeal, fieldKey, expectedDate, alreadyFilledBefore)
+  const activity = { ok: true, skipped: 'not_created_for_first_ateste' }
+  return {
+    ok: primeiroAtesteDate.ok === true,
+    dealId: dealId,
+    relation: relation,
+    dealStatus: { ok: true, skipped: 'not_expected_for_ateste' },
+    dealPatch: { ok: true, skipped: 'not_expected_for_ateste' },
+    primeiroAtesteDate: primeiroAtesteDate,
+    activity: activity
+  }
+}
+
+function cefDevolutivaVerifyPrimeiroAtestePatch_(dealId, fieldKey, expectedDate, alreadyFilledBefore) {
+  if (!dealId || !fieldKey) return { ok: false, error: 'missing_deal_or_field' }
+  const freshDeal = cefDevolutivaCallPipedrive_('deals/' + encodeURIComponent(String(dealId)), 'GET', null)
+  return cefDevolutivaVerifyPrimeiroAtestePatchFromDeal_(freshDeal, fieldKey, expectedDate, alreadyFilledBefore)
+}
+
+function cefDevolutivaVerifyPrimeiroAtestePatchFromDeal_(deal, fieldKey, expectedDate, alreadyFilledBefore) {
+  const actual = cefDevolutivaGetDealFieldValue_(deal, fieldKey)
+  const normalizedActual = cefDevolutivaNormalizePipedriveDate_(actual)
+
+  if (alreadyFilledBefore) {
+    return {
+      ok: !cefDevolutivaIsEmptyPipedriveValue_(actual),
+      alreadyFilledBefore: true,
+      actual: actual,
+      normalizedActual: normalizedActual
+    }
+  }
+
+  return {
+    ok: normalizedActual === expectedDate,
+    expectedDate: expectedDate,
+    actual: actual,
+    normalizedActual: normalizedActual
+  }
+}
+
+function cefDevolutivaVerifyActivityExists_(dealId, ownerUserId, messageId, relation) {
+  if (!dealId || !ownerUserId || !messageId) {
+    return {
+      ok: false,
+      error: 'missing_deal_owner_or_message',
+      dealId: dealId || '',
+      ownerUserId: ownerUserId || '',
+      messageId: messageId || ''
+    }
+  }
+
+  return {
+    ok: cefDevolutivaActivityExists_(dealId, ownerUserId, messageId, relation) === true,
+    dealId: dealId,
+    ownerUserId: ownerUserId,
+    messageId: messageId,
+    subject: CEF_DEVOLUTIVA_ACTIVITY_SUBJECT_
+  }
+}
+
+function cefDevolutivaVerifyActivity_(dealId, ownerUserId, messageId, activityId, relation) {
+  if (activityId) {
+    try {
+      const response = cefDevolutivaCallPipedrive_('activities/' + encodeURIComponent(String(activityId)), 'GET', null) || {}
+      const activity = response && Object.prototype.hasOwnProperty.call(response, 'data') ? response.data : response
+      const subject = String(activity && activity.subject || '').trim()
+      const note = String(activity && activity.note || '')
+      const uid = cefDevolutivaExtractActivityUserId_(activity)
+      const activityDealId = cefDevolutivaExtractActivityDealId_(activity)
+      const typeConfig = cefDevolutivaGetActivityTypeConfig_(relation)
+      return {
+        ok:
+          subject === CEF_DEVOLUTIVA_ACTIVITY_SUBJECT_ &&
+          note.indexOf(String(messageId || '')) >= 0 &&
+          (!typeConfig || cefDevolutivaActivityMatchesType_(activity, typeConfig.key)) &&
+          (!ownerUserId || Number(uid) === Number(ownerUserId)) &&
+          (!activityDealId || Number(activityDealId) === Number(dealId)),
+        source: 'activity_id',
+        id: activityId,
+        dealId: dealId,
+        ownerUserId: ownerUserId || '',
+        actualOwnerUserId: uid || '',
+        actualDealId: activityDealId || '',
+        messageId: messageId,
+        subject: subject
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        source: 'activity_id',
+        id: activityId,
+        error: String(err && err.message ? err.message : err)
+      }
+    }
+  }
+
+  const exists = cefDevolutivaVerifyActivityExists_(dealId, ownerUserId, messageId, relation)
+  exists.source = 'activity_search'
+  return exists
+}
+
+function cefDevolutivaBool_(value) {
+  if (value === true) return true
+  if (value === 1) return true
+  const text = String(value || '').trim().toLowerCase()
+  return text === '1' || text === 'true' || text === 'sim' || text === 'yes'
+}
+
+function cefDevolutivaExtractActivityId_(activity) {
+  if (!activity) return ''
+  if (activity.id) return activity.id
+  if (activity.data && activity.data.id) return activity.data.id
+  if (activity.activity && activity.activity.id) return activity.activity.id
+  return ''
+}
+
+function cefDevolutivaVerifyDealPatch_(deal, relation) {
+  const expected = cefDevolutivaBuildDealPatch_(relation)
+  const checks = []
+  let ok = true
+  const keys = Object.keys(expected)
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    const actual = cefDevolutivaGetDealFieldValue_(deal, key)
+    const checkOk = String(actual) === String(expected[key])
+    if (!checkOk) ok = false
+    checks.push({
+      key: key,
+      expected: expected[key],
+      actual: actual,
+      ok: checkOk
+    })
+  }
+
+  return { ok: ok, checks: checks }
+}
+
+function cefDevolutivaVerifyDealStatus_(deal, relation) {
+  let fieldKey = ''
+  let expected = ''
+
+  if (relation === CEF_DEVOLUTIVA_REL_IPTU_) {
+    fieldKey = CEF_DEVOLUTIVA_STATUS_IPTU_FIELD_KEY_
+    expected = CEF_DEVOLUTIVA_STATUS_IPTU_PENDENCIA_ID_
+  } else if (relation === CEF_DEVOLUTIVA_REL_CONDOMINIO_) {
+    fieldKey = CEF_DEVOLUTIVA_STATUS_CONDOMINIO_FIELD_KEY_
+    expected = CEF_DEVOLUTIVA_STATUS_CONDOMINIO_PENDENCIA_ID_
+  } else {
+    return { ok: false, error: 'invalid_relation', relation: relation }
+  }
+
+  const actual = cefDevolutivaGetDealFieldValue_(deal, fieldKey)
+  return {
+    ok: String(actual) === String(expected),
+    key: fieldKey,
+    expected: expected,
+    actual: actual
+  }
+}
+
+function cefDevolutivaScanLabelThreads_(handleMessage, seenMessages, maxMessages) {
+  const labels = cefDevolutivaGetCandidateGmailLabels_()
+  let handled = 0
+
+  for (let l = 0; l < labels.length && handled < maxMessages; l++) {
+    for (let start = 0; start < CEF_DEVOLUTIVA_MAX_THREADS_PER_RUN_ && handled < maxMessages; start += CEF_DEVOLUTIVA_THREAD_PAGE_SIZE_) {
+      const threads = labels[l].getThreads(start, CEF_DEVOLUTIVA_THREAD_PAGE_SIZE_)
+      if (!threads.length) break
+
+      for (let i = 0; i < threads.length && handled < maxMessages; i++) {
+        const messages = threads[i].getMessages()
+        for (let j = 0; j < messages.length && handled < maxMessages; j++) {
+          const messageId = String(messages[j].getId() || '').trim()
+          if (messageId && seenMessages[messageId]) continue
+          if (messageId) seenMessages[messageId] = true
+          if (handleMessage(messages[j], 'label:' + labels[l].getName()) === false) return
+          handled++
+        }
+      }
+    }
+  }
+}
+
+function cefDevolutivaGetCandidateGmailLabels_() {
+  const labels = GmailApp.getUserLabels()
+  const out = []
+  const seen = {}
+
+  for (let i = 0; i < labels.length; i++) {
+    const name = String(labels[i].getName() || '')
+    if (cefDevolutivaIsEntryLabel_(name)) {
+      if (!seen[name]) {
+        out.push(labels[i])
+        seen[name] = true
+      }
+    }
+  }
+
+  return out.sort(function (a, b) {
+    return cefDevolutivaLabelPriority_(a.getName()) - cefDevolutivaLabelPriority_(b.getName())
+  })
+}
+
+function cefDevolutivaHasEntryLabel_(labelNames) {
+  for (let i = 0; i < (labelNames || []).length; i++) {
+    if (cefDevolutivaIsEntryLabel_(labelNames[i])) return true
+  }
+  return false
+}
+
+function cefDevolutivaHasEntrySubject_(subject) {
+  const normalized = cefDevolutivaNormalize_(subject)
+  const hasAnaliseDocumental =
+    normalized.indexOf('analise documental') >= 0 &&
+    normalized.indexOf('imovel') >= 0 &&
+    /\bid\b/.test(normalized)
+  return hasAnaliseDocumental || cefDevolutivaHasAtestePagamentoSubject_(subject)
+}
+
+function cefDevolutivaIsEligibleMessage_(subject, labelNames) {
+  return cefDevolutivaHasEntryLabel_(labelNames) || cefDevolutivaHasEntrySubject_(subject)
+}
+
+function cefDevolutivaIsAtestePagamentoEntry_(subject, labelNames) {
+  return cefDevolutivaHasAtestePagamentoSubject_(subject)
+}
+
+function cefDevolutivaHasAtestePagamentoSubject_(subject) {
+  const normalized = cefDevolutivaNormalize_(subject)
+  // O assunto da CEF pode variar (com/sem "ID", "BEM" ou "Imóvel").
+  // Toda mensagem explicitamente identificada como ateste deve seguir o fluxo
+  // que apenas grava a data, nunca o fluxo de devolutiva que cria atividade.
+  return normalized.indexOf('ateste de pagamento') >= 0
+}
+
+function cefDevolutivaIsEntryLabel_(name) {
+  const normalized = cefDevolutivaNormalize_(name)
+  for (let i = 0; i < CEF_DEVOLUTIVA_ENTRY_LABELS_.length; i++) {
+    const expected = cefDevolutivaNormalize_(CEF_DEVOLUTIVA_ENTRY_LABELS_[i])
+    if (expected.indexOf('ateste de pagamento id') >= 0) continue
+    if (normalized === expected) return true
+  }
+  return false
+}
+
+function cefDevolutivaLabelPriority_(name) {
+  const normalized = cefDevolutivaNormalize_(name)
+  if (normalized.indexOf('analise documental') >= 0) return 0
+  if (normalized.indexOf('ateste de pagamento') >= 0) return 1
+  if (normalized === cefDevolutivaNormalize_(CEF_DEVOLUTIVA_REL_IPTU_)) return 90
+  if (normalized === cefDevolutivaNormalize_(CEF_DEVOLUTIVA_REL_CONDOMINIO_)) return 90
+  return 10
+}
+
+function processarMensagemDevolutivaCef_(message) {
+  const messageId = String(message.getId() || '').trim()
+  if (!messageId) return { ok: false, error: 'empty_message_id' }
+  if (!cefDevolutivaMessageIsFromProcessDate_(message)) return { ok: true, skipped: 'message_before_process_date' }
+  if (cefDevolutivaWasProcessedMessage_(message)) {
+    return { ok: true, skipped: 'already_processed' }
+  }
+
+  const subject = String(message.getSubject() || '')
+  const from = String(message.getFrom() || '')
+  const plainBody = cefDevolutivaGetReadableBody_(message)
+  const labelNames = cefDevolutivaGetMessageLabels_(message)
+  if (!cefDevolutivaIsEligibleMessage_(subject, labelNames)) {
+    return { ok: true, skipped: 'missing_entry_rule' }
+  }
+
+  if (cefDevolutivaIsAtestePagamentoEntry_(subject, labelNames)) {
+    return cefDevolutivaProcessarPrimeiroAteste_(message, messageId, subject, from, plainBody, labelNames)
+  }
+
+  const classification = cefDevolutivaClassify_(subject, from, labelNames, plainBody, messageId)
+
+  if (!classification.valid) {
+    return { ok: true, skipped: classification.reason || 'invalid_relation' }
+  }
+
+  const propertyCode = cefDevolutivaExtractPropertyCode_(subject, plainBody)
+  if (!propertyCode) {
+    cefDevolutivaLog_('ERROR', '', subject, 'property_code_not_found', {
+      messageId: messageId,
+      from: from,
+      labels: labelNames,
+      relation: classification.relation
+    })
+    cefDevolutivaMarkError_(messageId, 'property_code_not_found')
+    return { ok: false, error: 'property_code_not_found' }
+  }
+
+  if (!cefDevolutivaHasPipedriveConfig_()) {
+    cefDevolutivaLog_('ERROR', '', subject, 'pipedrive_config_missing', {
+      messageId: messageId,
+      from: from,
+      propertyCode: propertyCode,
+      relation: classification.relation
+    })
+    cefDevolutivaMarkError_(messageId, 'pipedrive_config_missing')
+    return { ok: false, error: 'pipedrive_config_missing', propertyCode: propertyCode }
+  }
+
+  const deal = cefDevolutivaFindDealByPropertyCode_(propertyCode)
+  if (!deal || !deal.id) {
+    cefDevolutivaLog_('ERROR', '', subject, 'deal_not_found', {
+      messageId: messageId,
+      from: from,
+      propertyCode: propertyCode,
+      relation: classification.relation
+    })
+    cefDevolutivaMarkError_(messageId, 'deal_not_found:' + propertyCode)
+    return { ok: false, error: 'deal_not_found', propertyCode: propertyCode }
+  }
+
+  const ownerResolution = cefDevolutivaResolveActivityOwnerUserId_(deal, classification.relation)
+  const ownerUserId = ownerResolution.userId
+  if (!ownerUserId) {
+    cefDevolutivaLog_('ERROR', deal.id, subject, 'activity_owner_not_resolved', {
+      messageId: messageId,
+      from: from,
+      propertyCode: propertyCode,
+      relation: classification.relation,
+      ownerResolution: ownerResolution
+    })
+    cefDevolutivaMarkError_(messageId, 'activity_owner_not_resolved:' + propertyCode)
+    return { ok: false, error: 'activity_owner_not_resolved', dealId: deal.id, propertyCode: propertyCode }
+  }
+
+  const alreadyHasActivity = cefDevolutivaActivityExists_(deal.id, ownerUserId, messageId, classification.relation)
+  let activity = null
+  if (!alreadyHasActivity) {
+    activity = cefDevolutivaCreateActivity_(deal.id, ownerUserId, messageId, propertyCode, classification)
+  }
+
+  const patch = cefDevolutivaBuildDealPatch_(classification.relation)
+  cefDevolutivaCallPipedrive_('deals/' + encodeURIComponent(String(deal.id)), 'PUT', patch)
+
+  cefDevolutivaMarkProcessed_(messageId, {
+    dealId: deal.id,
+    propertyCode: propertyCode,
+    relation: classification.relation,
+    activityId: activity && activity.id ? activity.id : '',
+    skippedActivity: alreadyHasActivity
+  }, message)
+
+  cefDevolutivaLog_('SIM', deal.id, subject, 'processed', {
+    messageId: messageId,
+    from: from,
+    propertyCode: propertyCode,
+    relation: classification.relation,
+    ownerUserId: ownerUserId,
+    activityId: activity && activity.id ? activity.id : '',
+    skippedActivity: alreadyHasActivity,
+    patch: patch
+  })
+
+  return {
+    ok: true,
+    processed: true,
+    dealId: deal.id,
+    propertyCode: propertyCode,
+    activityId: activity && activity.id ? activity.id : '',
+    ownerUserId: ownerUserId,
+    ownerResolution: ownerResolution,
+    skippedActivity: alreadyHasActivity
+  }
+}
+
+function cefDevolutivaProcessarPrimeiroAteste_(message, messageId, subject, from, body, labelNames) {
+  if (!cefDevolutivaMessageIsAfterProcessDate_(message)) {
+    return { ok: true, skipped: 'ateste_message_not_after_today' }
+  }
+
+  if (!cefDevolutivaHasCefSource_(subject, from, body, messageId)) {
+    return { ok: true, skipped: 'missing_cef_source' }
+  }
+
+  const expenseInfo = cefDevolutivaExtractAtesteExpenseInfo_(body)
+  const despesa = expenseInfo.value
+  const relation = cefDevolutivaClassifyExpenseText_(despesa)
+  if (!despesa || !relation) {
+    const reason = !despesa ? 'despesa_not_found' : 'unsupported_despesa'
+    cefDevolutivaLog_('ERROR', '', subject, reason, {
+      messageId: messageId,
+      from: from,
+      labels: labelNames,
+      despesa: despesa || '',
+      expenseSource: expenseInfo.source
+    })
+    cefDevolutivaMarkError_(messageId, reason)
+    return { ok: false, error: reason, despesa: despesa || '', expenseSource: expenseInfo.source }
+  }
+
+  const propertyCode = cefDevolutivaExtractPropertyCode_(subject, body)
+  if (!propertyCode) {
+    cefDevolutivaLog_('ERROR', '', subject, 'property_code_not_found', {
+      messageId: messageId,
+      from: from,
+      labels: labelNames,
+      relation: relation,
+      despesa: despesa
+    })
+    cefDevolutivaMarkError_(messageId, 'property_code_not_found')
+    return { ok: false, error: 'property_code_not_found', relation: relation }
+  }
+
+  if (!cefDevolutivaHasPipedriveConfig_()) {
+    cefDevolutivaLog_('ERROR', '', subject, 'pipedrive_config_missing', {
+      messageId: messageId,
+      from: from,
+      propertyCode: propertyCode,
+      relation: relation
+    })
+    cefDevolutivaMarkError_(messageId, 'pipedrive_config_missing')
+    return { ok: false, error: 'pipedrive_config_missing', propertyCode: propertyCode, relation: relation }
+  }
+
+  const deal = cefDevolutivaFindDealByPropertyCode_(propertyCode)
+  if (!deal || !deal.id) {
+    cefDevolutivaLog_('ERROR', '', subject, 'deal_not_found', {
+      messageId: messageId,
+      from: from,
+      propertyCode: propertyCode,
+      relation: relation,
+      despesa: despesa
+    })
+    cefDevolutivaMarkError_(messageId, 'deal_not_found:' + propertyCode)
+    return { ok: false, error: 'deal_not_found', propertyCode: propertyCode, relation: relation }
+  }
+
+  const config = cefDevolutivaGetPrimeiroAtesteFieldConfig_(relation)
+  if (!config) {
+    cefDevolutivaLog_('NAO', deal.id, subject, 'invalid_relation_for_first_ateste', {
+      messageId: messageId,
+      propertyCode: propertyCode,
+      relation: relation,
+      despesa: despesa
+    })
+    cefDevolutivaMarkProcessed_(messageId, { skipped: 'invalid_relation_for_first_ateste', dealId: deal.id }, message)
+    return { ok: true, skipped: 'invalid_relation_for_first_ateste', dealId: deal.id, propertyCode: propertyCode }
+  }
+
+  const patch = {}
+  let arrivalDate = ''
+
+  const currentAtesteDate = cefDevolutivaGetDealFieldValue_(deal, config.atesteFieldKey)
+  if (!cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate)) {
+    cefDevolutivaLog_('NAO', deal.id, subject, 'first_ateste_already_filled', {
+      messageId: messageId,
+      propertyCode: propertyCode,
+      relation: relation,
+      fieldKey: config.atesteFieldKey,
+      fieldName: config.atesteFieldName,
+      currentValue: currentAtesteDate
+    })
+    cefDevolutivaMarkProcessed_(messageId, {
+      dealId: deal.id,
+      propertyCode: propertyCode,
+      relation: relation,
+      despesa: despesa,
+      fieldKey: config.atesteFieldKey,
+      firstAtesteAlreadyFilled: true
+    }, message)
+    return {
+      ok: true,
+      processed: true,
+      skipped: 'first_ateste_already_filled',
+      dealId: deal.id,
+      propertyCode: propertyCode,
+      relation: relation,
+      firstAtesteAlreadyFilled: true
+    }
+  } else {
+    arrivalDate = cefDevolutivaNormalizePipedriveDate_(cefDevolutivaGetDealFieldValue_(deal, config.chegadaFieldKey)) ||
+      cefDevolutivaNormalizePipedriveDate_(message.getDate())
+    if (arrivalDate) {
+      patch[config.atesteFieldKey] = arrivalDate
+    } else {
+      cefDevolutivaLog_('NAO', deal.id, subject, 'arrival_date_not_found', {
+        messageId: messageId,
+        propertyCode: propertyCode,
+        relation: relation,
+        chegadaFieldKey: config.chegadaFieldKey,
+        chegadaFieldName: config.chegadaFieldName
+      })
+      cefDevolutivaMarkError_(messageId, 'arrival_date_not_found:' + propertyCode)
+      return { ok: false, error: 'arrival_date_not_found', dealId: deal.id, propertyCode: propertyCode, relation: relation }
+    }
+  }
+
+  if (Object.keys(patch).length) {
+    cefDevolutivaCallPipedrive_('deals/' + encodeURIComponent(String(deal.id)), 'PUT', patch)
+  }
+
+  cefDevolutivaMarkProcessed_(messageId, {
+    dealId: deal.id,
+    propertyCode: propertyCode,
+    relation: relation,
+    despesa: despesa,
+    arrivalDate: arrivalDate,
+    fieldKey: config.atesteFieldKey,
+    firstAtesteAlreadyFilled: !cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate)
+  }, message)
+
+  cefDevolutivaLog_('SIM', deal.id, subject, 'first_ateste_date_filled', {
+    messageId: messageId,
+    from: from,
+    propertyCode: propertyCode,
+    relation: relation,
+    despesa: despesa,
+    arrivalDate: arrivalDate,
+    firstAtesteAlreadyFilled: !cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate),
+    patch: patch
+  })
+
+  return {
+    ok: true,
+    processed: true,
+    dealId: deal.id,
+    propertyCode: propertyCode,
+    relation: relation,
+    firstAtesteAlreadyFilled: !cefDevolutivaIsEmptyPipedriveValue_(currentAtesteDate)
+  }
+}
+
+function cefDevolutivaClassify_(subject, from, labelNames, body, messageId) {
+  const tipoDespesa = cefDevolutivaExtractTipoDespesa_(body)
+  const despesa = cefDevolutivaExtractDespesa_(body)
+
+  if (!cefDevolutivaHasCefSource_(subject, from, body, messageId)) {
+    return { valid: false, reason: 'missing_cef_source' }
+  }
+
+  if (tipoDespesa) {
+    const tipoDespesaRelation = cefDevolutivaClassifyExpenseText_(tipoDespesa)
+    if (tipoDespesaRelation) return { valid: true, relation: tipoDespesaRelation, source: 'tipo_despesa' }
+    return { valid: false, reason: 'unsupported_tipo_despesa', tipoDespesa: tipoDespesa }
+  }
+
+  if (despesa) {
+    const despesaRelation = cefDevolutivaClassifyExpenseText_(despesa)
+    if (despesaRelation) return { valid: true, relation: despesaRelation, source: 'despesa' }
+    return { valid: false, reason: 'unsupported_despesa', despesa: despesa }
+  }
+
+  return { valid: false, reason: 'expense_relation_not_found' }
+}
+
+function cefDevolutivaHasCefSource_(subject, from, body, messageId) {
+  return cefDevolutivaTextHasCefSource_([subject, from, body].join('\n'))
+}
+
+function cefDevolutivaTextHasCefSource_(value) {
+  const text = cefDevolutivaNormalize_(value)
+  return /\bcef\b/.test(text) || text.indexOf('caixa') >= 0
+}
+
+function cefDevolutivaExtractPropertyCode_(subject, body) {
+  const fromSubject = cefDevolutivaPickPropertyCode_([subject])
+  if (fromSubject) return fromSubject
+  return cefDevolutivaPickPropertyCode_([body])
+}
+
+function cefDevolutivaPickPropertyCode_(parts) {
+  const text = String((parts || []).join('\n') || '')
+  const patterns = [
+    /(?:im[oó]vel|bem)\s*[:\-]\s*([0-9][0-9.\-\/]{2,})/ig,
+    /(?:c[oó]digo\s+do\s+im[oó]vel|c[oó]digo|cod\.?)\s*[:\-]\s*([0-9][0-9.\-\/]{2,})/ig
+  ]
+
+  for (let p = 0; p < patterns.length; p++) {
+    let match
+    while ((match = patterns[p].exec(text)) !== null) {
+      const code = cefDevolutivaNormalizeCode_(match[1])
+      if (code) return code
+    }
+  }
+
+  return ''
+}
+
+function cefDevolutivaFindDealByPropertyCode_(propertyCode) {
+  if (!cefDevolutivaHasPipedriveConfig_()) {
+    throw new Error('Configure BASE_URL/PIPEDRIVE_BASE_URL and PIPEDRIVE_TOKEN/PIPEDRIVE_API_TOKEN in Script Properties.')
+  }
+
+  const code = String(propertyCode || '').trim()
+  if (!code) return null
+
+  const attempts = [
+    'deals/search?term=' + encodeURIComponent(code) + '&exact_match=1&fields=title,custom_fields&limit=20',
+    'deals/search?term=' + encodeURIComponent(code) + '&fields=title,custom_fields&limit=50'
+  ]
+  const codeDigits = cefDevolutivaNormalizeCode_(code)
+
+  for (let a = 0; a < attempts.length; a++) {
+    const response = cefDevolutivaCallPipedrive_(attempts[a], 'GET', null) || {}
+    const items = response && Array.isArray(response.items) ? response.items : []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i] && items[i].item ? items[i].item : (items[i] || {})
+      const deal = item.id ? cefDevolutivaCallPipedrive_('deals/' + encodeURIComponent(String(item.id)), 'GET', null) : null
+      if (!deal || !deal.id) continue
+
+      const dealCode = cefDevolutivaNormalizeCode_(cefDevolutivaGetDealFieldValue_(deal, CEF_DEVOLUTIVA_NUMERO_IMOVEL_FIELD_KEY_))
+      const titleCode = cefDevolutivaNormalizeCode_(deal.title || item.title || '')
+      if (dealCode === codeDigits || (titleCode && titleCode.indexOf(codeDigits) >= 0)) return deal
+    }
+  }
+
+  return null
+}
+
+function cefDevolutivaResolveActivityOwnerUserId_(deal, relation) {
+  const config = cefDevolutivaGetActivityOwnerFieldConfig_(relation)
+  if (!config) {
+    return { userId: 0, error: 'invalid_relation', relation: relation || '' }
+  }
+
+  const raw = cefDevolutivaGetDealFieldValue_(deal, config.fieldKey)
+  const selected = cefDevolutivaExtractSelectedAssigneeOption_(raw, config.options)
+  const result = {
+    userId: 0,
+    relation: relation,
+    fieldKey: config.fieldKey,
+    fieldName: config.fieldName,
+    optionId: selected.id || '',
+    optionLabel: selected.label || '',
+    rawValue: raw
+  }
+
+  if (!selected.label) {
+    result.error = selected.error || 'empty_assignee_field'
+    return result
+  }
+
+  if (cefDevolutivaNormalize_(selected.label) === 'n/a') {
+    result.error = 'assignee_na'
+    return result
+  }
+
+  const matchedUser = cefDevolutivaFindPipedriveUserByName_(selected.label)
+  if (!matchedUser || !matchedUser.id) {
+    result.error = 'pipedrive_user_not_resolved'
+    return result
+  }
+
+  result.userId = Number(matchedUser.id) || 0
+  result.userName = matchedUser.name || ''
+  result.userEmail = matchedUser.email || ''
+  return result
+}
+
+function cefDevolutivaGetActivityOwnerFieldConfig_(relation) {
+  if (relation === CEF_DEVOLUTIVA_REL_IPTU_) {
+    return {
+      fieldKey: CEF_DEVOLUTIVA_ATRIBUIDO_IPTU_FIELD_KEY_,
+      fieldName: 'Atribuído: IPTU',
+      options: CEF_DEVOLUTIVA_ATRIBUIDO_IPTU_OPTIONS_
+    }
+  }
+
+  if (relation === CEF_DEVOLUTIVA_REL_CONDOMINIO_) {
+    return {
+      fieldKey: CEF_DEVOLUTIVA_ATRIBUIDO_CONDOMINIO_FIELD_KEY_,
+      fieldName: 'Atribuído: Condomínio',
+      options: CEF_DEVOLUTIVA_ATRIBUIDO_CONDOMINIO_OPTIONS_
+    }
+  }
+
+  return null
+}
+
+function cefDevolutivaExtractSelectedAssigneeOption_(raw, options) {
+  if (Array.isArray(raw)) {
+    return raw.length ? cefDevolutivaExtractSelectedAssigneeOption_(raw[0], options) : { id: '', label: '', error: 'empty_assignee_field' }
+  }
+
+  let value = raw
+  if (value && typeof value === 'object') {
+    if (Object.prototype.hasOwnProperty.call(value, 'id')) value = value.id
+    else if (Object.prototype.hasOwnProperty.call(value, 'value')) value = value.value
+    else if (Object.prototype.hasOwnProperty.call(value, 'label')) value = value.label
+  }
+
+  if (value == null || value === '') {
+    return { id: '', label: '', error: 'empty_assignee_field' }
+  }
+
+  const id = Number(value)
+  if (isFinite(id) && Object.prototype.hasOwnProperty.call(options, id)) {
+    return { id: id, label: String(options[id] || '').trim() }
+  }
+
+  const label = String(value || '').trim()
+  if (!label) return { id: '', label: '', error: 'empty_assignee_field' }
+
+  for (const optionId in options) {
+    if (cefDevolutivaNormalize_(options[optionId]) === cefDevolutivaNormalize_(label)) {
+      return { id: Number(optionId) || optionId, label: String(options[optionId] || '').trim() }
+    }
+  }
+
+  return { id: '', label: label }
+}
+
+function cefDevolutivaFindPipedriveUserByName_(name) {
+  return cefDevolutivaFindPipedriveUserInListByName_(name, cefDevolutivaListPipedriveUsers_())
+}
+
+function cefDevolutivaFindPipedriveUserInListByName_(name, users) {
+  const normalizedName = cefDevolutivaNormalize_(name)
+  if (!normalizedName || normalizedName === 'n/a') return null
+
+  const exact = []
+  const segment = []
+  const contains = []
+
+  for (let i = 0; i < (users || []).length; i++) {
+    const user = users[i] || {}
+    if (user.active_flag === false || user.is_deleted === true) continue
+
+    const userName = String(user.name || '').trim()
+    const normalizedUserName = cefDevolutivaNormalize_(userName)
+    if (!normalizedUserName) continue
+
+    if (normalizedUserName === normalizedName) {
+      exact.push(user)
+      continue
+    }
+
+    // Renomeações como "Jessica Gomes | Gabriel Max | Davi" mantêm o
+    // nome original como um segmento. Esse match é mais seguro que "contains".
+    const nameSegments = String(userName || '').split('|').map(function (part) {
+      return cefDevolutivaNormalize_(part)
+    }).filter(function (part) {
+      return !!part
+    })
+    if (nameSegments.indexOf(normalizedName) >= 0) {
+      segment.push(user)
+      continue
+    }
+
+    if (normalizedUserName.indexOf(normalizedName) >= 0 || normalizedName.indexOf(normalizedUserName) >= 0) {
+      contains.push(user)
+    }
+  }
+
+  if (exact.length === 1) return exact[0]
+  if (exact.length > 1) return null
+  if (segment.length === 1) return segment[0]
+  if (segment.length > 1) return null
+  return contains.length === 1 ? contains[0] : null
+}
+
+function cefDevolutivaListPipedriveUsers_() {
+  if (CEF_DEVOLUTIVA_PIPEDRIVE_USERS_CACHE_) return CEF_DEVOLUTIVA_PIPEDRIVE_USERS_CACHE_
+
+  const response = cefDevolutivaCallPipedrive_('users?limit=500', 'GET', null) || []
+  CEF_DEVOLUTIVA_PIPEDRIVE_USERS_CACHE_ = Array.isArray(response) ? response : (response.data || [])
+  return CEF_DEVOLUTIVA_PIPEDRIVE_USERS_CACHE_
+}
+
+function cefDevolutivaHasPipedriveConfig_() {
+  try {
+    const cfg = cefDevolutivaGetPipedriveConfig_()
+    return !!(cfg.baseUrl && cfg.token)
+  } catch (_) {
+    return false
+  }
+}
+
+function cefDevolutivaGetPipedriveConfig_() {
+  const props = PropertiesService.getScriptProperties()
+  const token = String(
+    props.getProperty('PIPEDRIVE_TOKEN') ||
+    props.getProperty('PIPEDRIVE_API_TOKEN') ||
+    props.getProperty('PD_API_KEY') ||
+    ''
+  ).trim()
+  const domain = String(props.getProperty('PIPEDRIVE_DOMAIN') || '').trim()
+  let baseUrl = String(
+    props.getProperty('BASE_URL') ||
+    props.getProperty('PIPEDRIVE_BASE_URL') ||
+    props.getProperty('PD_BASE_URL') ||
+    (domain ? domain : '') ||
+    'https://api.pipedrive.com/v1'
+  ).trim()
+
+  if (!token) throw new Error('Falta PIPEDRIVE_TOKEN ou PIPEDRIVE_API_TOKEN nas Script Properties.')
+  if (!baseUrl) throw new Error('Falta BASE_URL ou PIPEDRIVE_BASE_URL nas Script Properties.')
+
+  return { baseUrl: cefDevolutivaNormalizePipedriveBaseUrl_(baseUrl), token: token }
+}
+
+function cefDevolutivaNormalizePipedriveBaseUrl_(baseUrl) {
+  let url = String(baseUrl || '').trim().replace(/\/+$/, '')
+  if (!url) return ''
+
+  if (!/^https?:\/\//i.test(url)) {
+    if (url.indexOf('/') >= 0 || /\.pipedrive\.com/i.test(url)) url = 'https://' + url
+    else url = 'https://' + url + '.pipedrive.com'
+  }
+
+  url = url.replace(/\/api\/v1\/api\/v1$/i, '/api/v1')
+  if (/^https?:\/\/api\.pipedrive\.com$/i.test(url)) url += '/v1'
+  else if (/^https?:\/\/api\.pipedrive\.com\/v1$/i.test(url)) return url
+  else if (/\.pipedrive\.com$/i.test(url)) url += '/api/v1'
+  else if (/\.pipedrive\.com\/v1$/i.test(url)) url = url.replace(/\/v1$/i, '/api/v1')
+  else if (/\.pipedrive\.com\/api$/i.test(url)) url += '/v1'
+  else if (!/\/(?:api\/)?v1$/i.test(url)) url += '/v1'
+
+  return url
+}
+
+function cefDevolutivaCallPipedrive_(endpoint, method, payload) {
+  const cfg = cefDevolutivaGetPipedriveConfig_()
+  const path = String(endpoint || '').trim().replace(/^\/+/, '')
+  if (!path) throw new Error('Endpoint Pipedrive vazio.')
+
+  const hasToken = /(^|[?&])api_token=/.test(path)
+  const sep = path.indexOf('?') >= 0 ? '&' : '?'
+  const url = cfg.baseUrl + '/' + path + (hasToken ? '' : sep + 'api_token=' + encodeURIComponent(cfg.token))
+  const requestMethod = String(method || 'GET').toUpperCase()
+  const options = { method: requestMethod, muteHttpExceptions: true }
+
+  if (payload != null && requestMethod !== 'GET' && requestMethod !== 'DELETE') {
+    options.contentType = 'application/json'
+    options.payload = JSON.stringify(payload)
+  }
+
+  const response = UrlFetchApp.fetch(url, options)
+  const status = response.getResponseCode()
+  const text = response.getContentText()
+  const data = text ? JSON.parse(text) : {}
+
+  if (status < 200 || status >= 300 || data.success === false) {
+    throw new Error('Erro Pipedrive ' + status + ': ' + text + ' | URL=' + cefDevolutivaRedactPipedriveUrl_(url))
+  }
+
+  return data && Object.prototype.hasOwnProperty.call(data, 'data') ? data.data : data
+}
+
+function cefDevolutivaRedactPipedriveUrl_(url) {
+  return String(url || '').replace(/([?&]api_token=)[^&\s]+/gi, '$1[REDACTED]')
+}
+
+function cefDevolutivaCreateActivity_(dealId, ownerUserId, messageId, propertyCode, classification) {
+  const dueDate = cefDevolutivaFormatDate_(cefDevolutivaAddBusinessDays_(new Date(), CEF_DEVOLUTIVA_DUE_BUSINESS_DAYS_))
+  const typeConfig = cefDevolutivaGetActivityTypeConfig_(classification.relation)
+  if (!typeConfig) throw new Error('Relação inválida para tipo da atividade: ' + classification.relation)
+
+  const payload = {
+    subject: CEF_DEVOLUTIVA_ACTIVITY_SUBJECT_,
+    type: typeConfig.key,
+    deal_id: Number(dealId),
+    user_id: Number(ownerUserId),
+    due_date: dueDate,
+    note: CEF_DEVOLUTIVA_ACTIVITY_NOTE_ + '\n\nMensagem Gmail: ' + messageId + '\nImóvel/BEM: ' + propertyCode + '\nRelação: ' + classification.relation
+  }
+  payload[CEF_DEVOLUTIVA_PRIORITY_FIELD_KEY_] = CEF_DEVOLUTIVA_PRIORITY_MEDIUM_ID_
+  const activity = cefDevolutivaCallPipedrive_('activities', 'POST', payload)
+  return cefDevolutivaEnsureActivityOwner_(activity, ownerUserId)
+}
+
+function cefDevolutivaEnsureActivityOwner_(activity, expectedOwnerUserId) {
+  const activityId = activity && activity.id ? Number(activity.id) : 0
+  const expectedOwner = Number(expectedOwnerUserId) || 0
+  if (!activityId || !expectedOwner) {
+    throw new Error('Não foi possível validar o responsável da atividade criada.')
+  }
+
+  let freshActivity = cefDevolutivaCallPipedrive_('activities/' + encodeURIComponent(String(activityId)), 'GET', null) || activity
+  let actualOwner = cefDevolutivaExtractActivityUserId_(freshActivity)
+
+  if (Number(actualOwner) !== expectedOwner) {
+    cefDevolutivaCallPipedrive_(
+      'activities/' + encodeURIComponent(String(activityId)),
+      'PUT',
+      { user_id: expectedOwner }
+    )
+    freshActivity = cefDevolutivaCallPipedrive_('activities/' + encodeURIComponent(String(activityId)), 'GET', null) || freshActivity
+    actualOwner = cefDevolutivaExtractActivityUserId_(freshActivity)
+  }
+
+  if (Number(actualOwner) !== expectedOwner) {
+    throw new Error(
+      'Responsável incorreto na atividade ' + activityId +
+      ': esperado=' + expectedOwner + ', recebido=' + (actualOwner || 0)
+    )
+  }
+
+  return freshActivity
+}
+
+function cefDevolutivaGetActivityTypeConfig_(relation) {
+  if (relation === CEF_DEVOLUTIVA_REL_IPTU_) {
+    return { id: CEF_DEVOLUTIVA_TAG_IPTU_ID_, key: CEF_DEVOLUTIVA_TAG_IPTU_KEY_, name: 'IPTU', orderNr: 10 }
+  }
+
+  if (relation === CEF_DEVOLUTIVA_REL_CONDOMINIO_) {
+    return { id: CEF_DEVOLUTIVA_TAG_CONDOMINIO_ID_, key: CEF_DEVOLUTIVA_TAG_CONDOMINIO_KEY_, name: 'Condomínio', orderNr: 11 }
+  }
+
+  return null
+}
+
+function cefDevolutivaActivityExists_(dealId, ownerUserId, messageId, relation) {
+  const response = cefDevolutivaCallPipedrive_('activities?deal_id=' + encodeURIComponent(String(dealId)) + '&done=0&limit=500', 'GET', null) || {}
+  const activities = Array.isArray(response) ? response : (response.data || [])
+  const typeConfig = cefDevolutivaGetActivityTypeConfig_(relation)
+  for (let i = 0; i < activities.length; i++) {
+    const activity = activities[i] || {}
+    const subject = String(activity.subject || '').trim()
+    const uid = cefDevolutivaExtractActivityUserId_(activity)
+    const typeMatches = !typeConfig || cefDevolutivaActivityMatchesType_(activity, typeConfig.key)
+    if (
+      subject === CEF_DEVOLUTIVA_ACTIVITY_SUBJECT_ &&
+      Number(uid) === Number(ownerUserId) &&
+      typeMatches
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function cefDevolutivaActivityMatchesType_(activity, expectedTypeKey) {
+  const wanted = cefDevolutivaNormalize_(expectedTypeKey)
+  if (!wanted) return true
+  const candidates = [
+    activity && activity.type,
+    activity && activity.type_key,
+    activity && activity.type_name
+  ]
+  for (let i = 0; i < candidates.length; i++) {
+    if (cefDevolutivaNormalize_(candidates[i]) === wanted) return true
+  }
+  return false
+}
+
+function cefDevolutivaBuildDealPatch_(relation) {
+  const patch = {}
+  if (relation === CEF_DEVOLUTIVA_REL_IPTU_) {
+    patch[CEF_DEVOLUTIVA_STATUS_IPTU_FIELD_KEY_] = CEF_DEVOLUTIVA_STATUS_IPTU_PENDENCIA_ID_
+    patch[CEF_DEVOLUTIVA_TAG_IPTU_KEY_] = CEF_DEVOLUTIVA_TAG_IPTU_ID_
+    return patch
+  }
+
+  if (relation === CEF_DEVOLUTIVA_REL_CONDOMINIO_) {
+    patch[CEF_DEVOLUTIVA_STATUS_CONDOMINIO_FIELD_KEY_] = CEF_DEVOLUTIVA_STATUS_CONDOMINIO_PENDENCIA_ID_
+    patch[CEF_DEVOLUTIVA_TAG_CONDOMINIO_KEY_] = CEF_DEVOLUTIVA_TAG_CONDOMINIO_ID_
+    return patch
+  }
+
+  throw new Error('Relação inválida para patch do deal: ' + relation)
+}
+
+function cefDevolutivaGetPrimeiroAtesteFieldConfig_(relation) {
+  if (relation === CEF_DEVOLUTIVA_REL_IPTU_) {
+    return {
+      chegadaFieldKey: CEF_DEVOLUTIVA_INI_IPTU_FIELD_KEY_,
+      chegadaFieldName: 'IPTU: Início',
+      atesteFieldKey: CEF_DEVOLUTIVA_ATESTE_IPTU_DATA_FIELD_KEY_,
+      atesteFieldName: 'IPTU: Data do Primeiro Ateste'
+    }
+  }
+
+  if (relation === CEF_DEVOLUTIVA_REL_CONDOMINIO_) {
+    return {
+      chegadaFieldKey: CEF_DEVOLUTIVA_INI_CONDOMINIO_FIELD_KEY_,
+      chegadaFieldName: 'Condomínio: Início',
+      atesteFieldKey: CEF_DEVOLUTIVA_ATESTE_CONDOMINIO_DATA_FIELD_KEY_,
+      atesteFieldName: 'Condomínio: Data do Primeiro Ateste'
+    }
+  }
+
+  return null
+}
+
+function cefDevolutivaIsEmptyPipedriveValue_(value) {
+  if (value == null) return true
+  if (Array.isArray(value)) return value.length === 0
+  if (typeof value === 'object') {
+    if (Object.prototype.hasOwnProperty.call(value, 'value')) return cefDevolutivaIsEmptyPipedriveValue_(value.value)
+    if (Object.prototype.hasOwnProperty.call(value, 'id')) return cefDevolutivaIsEmptyPipedriveValue_(value.id)
+    return Object.keys(value).length === 0
+  }
+  return String(value || '').trim() === ''
+}
+
+function cefDevolutivaNormalizePipedriveDate_(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) return cefDevolutivaFormatDate_(value)
+  if (cefDevolutivaIsEmptyPipedriveValue_(value)) return ''
+
+  if (typeof value === 'object') {
+    if (Object.prototype.hasOwnProperty.call(value, 'value')) return cefDevolutivaNormalizePipedriveDate_(value.value)
+    if (Object.prototype.hasOwnProperty.call(value, 'date')) return cefDevolutivaNormalizePipedriveDate_(value.date)
+  }
+
+  const text = String(value || '').trim()
+  const iso = text.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (iso) return iso[1]
+
+  const br = text.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (br) return br[3] + '-' + br[2] + '-' + br[1]
+
+  const parsed = new Date(text)
+  if (!isNaN(parsed.getTime())) return cefDevolutivaFormatDate_(parsed)
+  return ''
+}
+
+function cefDevolutivaGetMessageLabels_(message) {
+  const thread = message.getThread()
+  const labels = thread ? thread.getLabels() : []
+  const out = []
+  for (let i = 0; i < labels.length; i++) {
+    out.push(String(labels[i].getName() || ''))
+  }
+  return out
+}
+
+function cefDevolutivaGetReadableBody_(message) {
+  const plain = String(message && message.getPlainBody ? (message.getPlainBody() || '') : '')
+  const html = String(message && message.getBody ? (message.getBody() || '') : '')
+  const htmlText = cefDevolutivaHtmlToReadableText_(html)
+  if (!htmlText || cefDevolutivaNormalize_(plain).indexOf(cefDevolutivaNormalize_(htmlText)) >= 0) return plain
+  if (!plain) return htmlText
+  return plain + '\n' + htmlText
+}
+
+function cefDevolutivaHtmlToReadableText_(html) {
+  let text = String(html || '')
+  if (!text) return ''
+
+  text = text
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*\/\s*(p|div|h[1-6]|li|section|article)\s*>/gi, '\n')
+    .replace(/<\s*\/\s*tr\s*>/gi, '\n')
+    .replace(/<\s*\/\s*(td|th)\s*>/gi, '\t')
+    .replace(/<\s*(tr|td|th)\b[^>]*>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  return text
+}
+
+function cefDevolutivaBuildBodyDebug_(message, readableBody) {
+  const plain = String(message && message.getPlainBody ? (message.getPlainBody() || '') : '')
+  const html = String(message && message.getBody ? (message.getBody() || '') : '')
+  const htmlText = cefDevolutivaHtmlToReadableText_(html)
+  return {
+    plainLength: plain.length,
+    htmlLength: html.length,
+    htmlTextLength: htmlText.length,
+    readableLength: String(readableBody || '').length,
+    readableSample: String(readableBody || '').slice(0, 1200)
+  }
+}
+
+function cefDevolutivaExtractTipoDespesa_(body) {
+  const text = String(body || '')
+  const fromTable = cefDevolutivaExtractTableColumnValue_(text, 'tipo despesa')
+  if (fromTable) return fromTable
+
+  const sameLineMatch = text.match(/tipo\s+despesa\s*[:\-]\s*([^\n\r]+)/i)
+  if (sameLineMatch) return String(sameLineMatch[1] || '').trim()
+
+  const lines = text.split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const current = cefDevolutivaNormalize_(lines[i]).replace(/[:\-]+$/g, '').trim()
+    const next = i + 1 < lines.length ? cefDevolutivaNormalize_(lines[i + 1]).replace(/[:\-]+$/g, '').trim() : ''
+    let valueStart = -1
+
+    if (current === 'tipo despesa') valueStart = i + 1
+    else if (current === 'tipo' && next === 'despesa') valueStart = i + 2
+    if (valueStart < 0) continue
+
+    const parts = []
+    for (let j = valueStart; j < lines.length && parts.length < 4; j++) {
+      const value = String(lines[j] || '').trim()
+      if (!value) continue
+      parts.push(value)
+      const joined = parts.join(' ')
+      if (cefDevolutivaClassifyExpenseText_(joined)) return joined
+    }
+
+    return parts.join(' ').trim()
+  }
+
+  return ''
+}
+
+function cefDevolutivaExtractTableColumnValue_(body, columnName) {
+  const text = String(body || '')
+  const wanted = cefDevolutivaNormalize_(columnName)
+  if (wanted !== 'tipo despesa') return ''
+  const tabular = cefDevolutivaExtractDelimitedTableColumnValue_(text, wanted)
+  if (tabular) return tabular
+  const plain = cefDevolutivaExtractPlainTextTableColumnValue_(text, wanted)
+  if (plain) return plain
+  return cefDevolutivaExtractStackedTableColumnValue_(text, wanted)
+}
+
+function cefDevolutivaExtractDelimitedTableColumnValue_(text, wanted) {
+  const lines = String(text || '').split(/\r?\n/)
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (lines[i].indexOf('\t') < 0) continue
+    const headers = lines[i].split('\t').map(function (part) { return cefDevolutivaNormalize_(part) })
+    const col = headers.indexOf(wanted)
+    if (col < 0) continue
+
+    for (let j = i + 1; j < lines.length; j++) {
+      if (!String(lines[j] || '').trim()) continue
+      const values = String(lines[j] || '').split('\t')
+      if (values.length <= col) continue
+      const value = String(values[col] || '').trim()
+      if (cefDevolutivaIsTableHeaderLine_(lines[j]) || cefDevolutivaNormalize_(value) === wanted) continue
+      if (value && wanted === 'tipo despesa') {
+        const nextLine = j + 1 < lines.length ? String(lines[j + 1] || '').trim() : ''
+        const nextPart = nextLine.indexOf('\t') >= 0 ? String(nextLine.split('\t')[0] || '').trim() : nextLine
+        if (nextPart && !cefDevolutivaClassifyExpenseText_(value) && cefDevolutivaClassifyExpenseText_(value + ' ' + nextPart)) {
+          return value + ' ' + nextPart
+        }
+      }
+      if (value) return value
+    }
+  }
+  return ''
+}
+
+function cefDevolutivaExtractPlainTextTableColumnValue_(text, wanted) {
+  const lines = String(text || '').split(/\r?\n/)
+
+  for (let i = 0; i < lines.length; i++) {
+    if (!cefDevolutivaIsTableHeaderLine_(lines[i])) continue
+
+    for (let j = i + 1; j < lines.length && j <= i + 12; j++) {
+      const line = String(lines[j] || '').trim()
+      if (!line || cefDevolutivaIsTableHeaderLine_(line)) continue
+
+      const parsed = cefDevolutivaParsePlainTextExpenseRow_(line)
+      if (!parsed) continue
+      if (wanted === 'tipo despesa') return parsed.tipoDespesa
+    }
+  }
+
+  return ''
+}
+
+function cefDevolutivaIsTableHeaderLine_(line) {
+  const normalized = cefDevolutivaNormalize_(line)
+  return normalized.indexOf('id imovel') >= 0 && normalized.indexOf('tipo despesa') >= 0
+}
+
+function cefDevolutivaParsePlainTextExpenseRow_(line) {
+  const text = String(line || '').replace(/\s+/g, ' ').trim()
+  const match = text.match(/^(\d+)\s+(\d{5,})\s+(.+?)\s+(Boleto|Pix|PIX|TED|DOC|Transfer[eê]ncia|Cart[aã]o)\b/i)
+  if (!match) return null
+  return {
+    id: String(match[1] || '').trim(),
+    imovel: String(match[2] || '').trim(),
+    tipoDespesa: String(match[3] || '').trim()
+  }
+}
+
+function cefDevolutivaExtractStackedTableColumnValue_(text, wanted) {
+  const lines = String(text || '').split(/\r?\n/)
+    .map(function (line) { return String(line || '').trim() })
+    .filter(function (line) { return !!line })
+
+  for (let i = 0; i < lines.length; i++) {
+    const current = cefDevolutivaNormalize_(lines[i]).replace(/[:\-]+$/g, '').trim()
+    const next = i + 1 < lines.length ? cefDevolutivaNormalize_(lines[i + 1]).replace(/[:\-]+$/g, '').trim() : ''
+    let dataStart = -1
+    let columnOffset = -1
+
+    if (current === 'id' && next === 'imovel') {
+      const header = cefDevolutivaReadStackedTableHeader_(lines, i)
+      if (header.names.length && header.names.indexOf(wanted) >= 0) {
+        dataStart = header.nextIndex
+        columnOffset = header.names.indexOf(wanted)
+      }
+    }
+
+    if (dataStart < 0 || columnOffset < 0) continue
+
+    const value = cefDevolutivaReadStackedTableValue_(lines, dataStart, columnOffset, wanted)
+    if (value) return value
+  }
+
+  return ''
+}
+
+function cefDevolutivaReadStackedTableHeader_(lines, start) {
+  const names = []
+  let i = start
+  while (i < lines.length && names.length < 12) {
+    const one = cefDevolutivaNormalize_(lines[i]).replace(/[:\-]+$/g, '').trim()
+    const two = i + 1 < lines.length ? cefDevolutivaNormalize_(lines[i + 1]).replace(/[:\-]+$/g, '').trim() : ''
+
+    if (one === 'tipo' && two === 'despesa') {
+      names.push('tipo despesa')
+      i += 2
+    } else if (one === 'meio de' && two === 'pagamento') {
+      names.push('meio de pagamento')
+      i += 2
+    } else if (one === 'comp' && two === 'inicial') {
+      names.push('comp inicial')
+      i += 2
+    } else if (one === 'comp' && two === 'final') {
+      names.push('comp final')
+      i += 2
+    } else {
+      names.push(one)
+      i++
+    }
+
+    if (names[names.length - 1].indexOf('motivo') >= 0) {
+      if (names.indexOf('tipo despesa') >= 0 && names.indexOf('imovel') >= 0) break
+    }
+  }
+  return { names: names, nextIndex: i }
+}
+
+function cefDevolutivaReadStackedTableValue_(lines, dataStart, columnOffset, wanted) {
+  let index = dataStart + columnOffset
+  if (index >= lines.length) return ''
+
+  let value = String(lines[index] || '').trim()
+  if (wanted === 'tipo despesa') {
+    const next = index + 1 < lines.length ? String(lines[index + 1] || '').trim() : ''
+    if (next && !cefDevolutivaClassifyExpenseText_(value) && cefDevolutivaClassifyExpenseText_(value + ' ' + next)) {
+      value += ' ' + next
+    }
+  }
+
+  return value
+}
+
+function cefDevolutivaExtractDespesa_(body) {
+  const match = String(body || '').match(/(?:^|[\n\r])\s*despesa\s*[:\-]\s*([^\n\r]+)/i)
+  return match ? String(match[1] || '').trim() : ''
+}
+
+function cefDevolutivaExtractAtesteExpenseInfo_(body) {
+  const despesa = cefDevolutivaExtractDespesa_(body)
+  if (despesa) return { value: despesa, source: 'despesa' }
+
+  const tipoDespesa = cefDevolutivaExtractTipoDespesa_(body)
+  if (tipoDespesa) return { value: tipoDespesa, source: 'tipo_despesa' }
+
+  return { value: '', source: 'despesa' }
+}
+
+function cefDevolutivaClassifyExpenseText_(value) {
+  const normalized = cefDevolutivaNormalize_(value)
+  if (/\biptu\b/.test(normalized)) return CEF_DEVOLUTIVA_REL_IPTU_
+  if (normalized.indexOf('taxa condominial') >= 0 || normalized.indexOf('condominio') >= 0) {
+    return CEF_DEVOLUTIVA_REL_CONDOMINIO_
+  }
+  return ''
+}
+
+function cefDevolutivaGetDealFieldValue_(deal, fieldKey) {
+  const key = String(fieldKey || '').trim()
+  if (!deal || typeof deal !== 'object' || !key) return null
+  if (Object.prototype.hasOwnProperty.call(deal, key)) return deal[key]
+  const custom = deal.custom_fields && typeof deal.custom_fields === 'object' ? deal.custom_fields : null
+  if (custom && Object.prototype.hasOwnProperty.call(custom, key)) return custom[key]
+  return null
+}
+
+function cefDevolutivaExtractActivityUserId_(activity) {
+  if (!activity) return 0
+  const value = activity.user_id
+  if (value && typeof value === 'object' && value.id) return Number(value.id) || 0
+  if (value) return Number(value) || 0
+  if (activity.assigned_to_user_id) return Number(activity.assigned_to_user_id) || 0
+  if (activity.owner_id && typeof activity.owner_id === 'object' && activity.owner_id.id) return Number(activity.owner_id.id) || 0
+  if (activity.owner_id) return Number(activity.owner_id) || 0
+  return 0
+}
+
+function cefDevolutivaExtractActivityDealId_(activity) {
+  if (!activity) return 0
+  const value = activity.deal_id
+  if (value && typeof value === 'object' && value.id) return Number(value.id) || 0
+  if (value) return Number(value) || 0
+  if (activity.deal && typeof activity.deal === 'object' && activity.deal.id) return Number(activity.deal.id) || 0
+  if (activity.deal) return Number(activity.deal) || 0
+  return 0
+}
+
+function cefDevolutivaWasProcessed_(messageId) {
+  return PropertiesService.getScriptProperties().getProperty(CEF_DEVOLUTIVA_PROCESSED_PROP_PREFIX_ + messageId) === '1'
+}
+
+function cefDevolutivaWasProcessedMessage_(message) {
+  if (CEF_DEVOLUTIVA_IGNORE_PROCESSED_FOR_TESTS_) return false
+  const messageId = String(message && message.getId ? message.getId() : '').trim()
+  return !!(messageId && cefDevolutivaWasProcessed_(messageId))
+}
+
+function cefDevolutivaMessageHasProcessedLabel_(message) {
+  const labelNames = cefDevolutivaGetMessageLabels_(message)
+  for (let i = 0; i < labelNames.length; i++) {
+    if (String(labelNames[i] || '') === CEF_DEVOLUTIVA_PROCESSED_LABEL_) return true
+  }
+  return false
+}
+
+function cefDevolutivaMarkProcessed_(messageId, data, message, processedLabel) {
+  const props = PropertiesService.getScriptProperties()
+  props.setProperty(CEF_DEVOLUTIVA_PROCESSED_PROP_PREFIX_ + messageId, '1')
+  props.setProperty(CEF_DEVOLUTIVA_PROCESSED_PROP_PREFIX_ + messageId + '_DATA', JSON.stringify(data || {}))
+  cefDevolutivaMarkMessageProcessedLabel_(message, processedLabel)
+}
+
+function cefDevolutivaMarkMessageProcessedLabel_(message, processedLabel) {
+  if (!message || !message.getThread) return
+  const thread = message.getThread()
+  if (!thread) return
+  ;(processedLabel || cefDevolutivaGetProcessedLabel_()).addToThread(thread)
+}
+
+function cefDevolutivaGetProcessedLabel_() {
+  return GmailApp.getUserLabelByName(CEF_DEVOLUTIVA_PROCESSED_LABEL_) || GmailApp.createLabel(CEF_DEVOLUTIVA_PROCESSED_LABEL_)
+}
+
+function cefDevolutivaMarkError_(messageId, error) {
+  PropertiesService.getScriptProperties().setProperty(CEF_DEVOLUTIVA_ERROR_PROP_PREFIX_ + messageId, String(error || 'error'))
+}
+
+function cefDevolutivaLog_(altered, dealId, title, fields, patch) {
+  if (typeof appendLog_ === 'function') {
+    appendLog_({
+      timestamp: new Date(),
+      dealId: dealId || '',
+      title: title || '',
+      action: 'cef_devolutiva_iptu_condominio',
+      fn: 'processarDevolutivasCefIptuCondominio',
+      altered: altered,
+      fields: fields || '',
+      patch: patch || {},
+      changedKeys: []
+    })
+    return
+  }
+
+  console.log(JSON.stringify({
+    timestamp: new Date(),
+    action: 'cef_devolutiva_iptu_condominio',
+    altered: altered,
+    dealId: dealId || '',
+    title: title || '',
+    fields: fields || '',
+    patch: patch || {}
+  }))
+}
+
+function cefDevolutivaNormalize_(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function cefDevolutivaNormalizeCode_(value) {
+  return String(value == null ? '' : value).replace(/\D+/g, '').trim()
+}
+
+function cefDevolutivaAddBusinessDays_(date, days) {
+  const out = new Date(date.getTime())
+  let remaining = Math.max(0, Number(days || 0))
+
+  while (remaining > 0) {
+    out.setDate(out.getDate() + 1)
+    const day = out.getDay()
+    if (day !== 0 && day !== 6) remaining--
+  }
+
+  return out
+}
+
+function cefDevolutivaMessageIsFromProcessDate_(message) {
+  return cefDevolutivaMessageIsAfterProcessDate_(message)
+}
+
+function cefDevolutivaMessageIsAfterProcessDate_(message) {
+  if (CEF_DEVOLUTIVA_IGNORE_PROCESS_DATE_TEMP_) return true
+  const receivedAt = message && message.getDate ? message.getDate() : null
+  if (!(receivedAt instanceof Date) || isNaN(receivedAt.getTime())) return false
+  return receivedAt.getTime() > cefDevolutivaEndOfDay_(CEF_DEVOLUTIVA_PROCESS_FROM_DATE_).getTime()
+}
+
+function cefDevolutivaAddDays_(date, days) {
+  const out = new Date(date.getTime())
+  out.setDate(out.getDate() + Number(days || 0))
+  return out
+}
+
+function cefDevolutivaStartOfDay_(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function cefDevolutivaEndOfDay_(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
+}
+
+function cefDevolutivaFormatGmailSearchDate_(date) {
+  return Utilities.formatDate(date, Session.getScriptTimeZone() || 'America/Sao_Paulo', 'yyyy/MM/dd')
+}
+
+function cefDevolutivaFormatDate_(date) {
+  return Utilities.formatDate(date, Session.getScriptTimeZone() || 'America/Sao_Paulo', 'yyyy-MM-dd')
+}
+
+// Compatibilidade com o antigo módulo acionado por webhook do Pipedrive.
+// No fluxo unificado, somente o processamento do Gmail pode criar atividades.
+function devolutivaCefTriggerKeys_() {
+  return []
+}
+
+function devolutivaCefOutputKeys_() {
+  return []
+}
+
+function orquestraDevolutivaCefIptuCondominio(deal, changedKeys, options) {
+  return {
+    ok: true,
+    skipped: 'unified_gmail_canonical_source',
+    canonicalSource: CEF_DEVOLUTIVA_CANONICAL_SOURCE_,
+    activityCreated: false,
+    dealId: deal && deal.id != null ? String(deal.id) : '',
+    changedKeys: Array.isArray(changedKeys) ? changedKeys.slice(0) : [],
+    dryRun: !!(options && options.dryRun)
+  }
+}
+
+function preverDevolutivaCefWebhookDeal(dealId, relation) {
+  return {
+    ok: true,
+    skipped: 'unified_gmail_canonical_source',
+    canonicalSource: CEF_DEVOLUTIVA_CANONICAL_SOURCE_,
+    activityCreated: false,
+    dealId: String(dealId || '').trim(),
+    relation: String(relation || '').trim()
+  }
+}
+
+function testarFluxoUnificadoCefSimulado() {
+  const renamedUser = { id: 101, name: 'Jessica Gomes | Gabriel Max | Davi', active_flag: true }
+  const inactiveUser = { id: 102, name: 'Jessica Gomes', active_flag: false }
+  const ambiguousUsers = [
+    { id: 201, name: 'Jessica Gomes | Equipe A', active_flag: true },
+    { id: 202, name: 'Jessica Gomes | Equipe B', active_flag: true }
+  ]
+  const resolvedRenamed = cefDevolutivaFindPipedriveUserInListByName_('Jessica Gomes', [inactiveUser, renamedUser])
+  const resolvedAmbiguous = cefDevolutivaFindPipedriveUserInListByName_('Jessica Gomes', ambiguousUsers)
+  const webhookResult = orquestraDevolutivaCefIptuCondominio({ id: 999 }, ['status'], {})
+
+  const checks = [
+    { name: 'ateste_com_id_e_bem', ok: cefDevolutivaHasAtestePagamentoSubject_('Ateste de pagamento ID: 1 - BEM: 2') === true },
+    { name: 'ateste_sem_id', ok: cefDevolutivaHasAtestePagamentoSubject_('Ateste de pagamento - Imóvel: 2') === true },
+    { name: 'analise_nao_e_ateste', ok: cefDevolutivaHasAtestePagamentoSubject_('Análise Documental ID: 1 - Imóvel: 2') === false },
+    { name: 'usuario_renomeado', ok: !!resolvedRenamed && Number(resolvedRenamed.id) === 101 },
+    { name: 'usuario_ambiguo_bloqueado', ok: resolvedAmbiguous === null },
+    { name: 'webhook_nao_cria_atividade', ok: webhookResult.activityCreated === false && webhookResult.skipped === 'unified_gmail_canonical_source' },
+    { name: 'tipo_iptu', ok: cefDevolutivaActivityMatchesType_({ type: 'condominio' }, 'condominio') === true },
+    { name: 'tipo_condominio_separado', ok: cefDevolutivaActivityMatchesType_({ type: 'condominio1' }, 'condominio') === false }
+  ]
+  const failed = checks.filter(function (check) { return check.ok !== true })
+  const result = { ok: failed.length === 0, total: checks.length, failed: failed, checks: checks }
+  Logger.log(JSON.stringify(result, null, 2))
+  return result
+}
