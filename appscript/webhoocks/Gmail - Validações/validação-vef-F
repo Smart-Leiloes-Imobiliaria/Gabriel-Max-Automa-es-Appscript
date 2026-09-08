@@ -11,6 +11,7 @@ const CEF_DEVOLUTIVA_IGNORE_PROCESS_DATE_TEMP_ = false
 const CEF_DEVOLUTIVA_PROCESS_FROM_DATE_ = new Date(2026, 5, 8)
 const CEF_DEVOLUTIVA_UNIFIED_FLOW_ = true
 const CEF_DEVOLUTIVA_CANONICAL_SOURCE_ = 'gmail'
+const CEF_DEVOLUTIVA_DEFAULT_KEEP_PROCESSED_PROPS_ = 300
 
 
 const CEF_DEVOLUTIVA_NUMERO_IMOVEL_FIELD_KEY_ = '5c3aac951d1281021e01c13aa7a11a449efeabd1'
@@ -1784,6 +1785,120 @@ function cefDevolutivaExtractActivityDealId_(activity) {
 
 function cefDevolutivaWasProcessed_(messageId) {
   return PropertiesService.getScriptProperties().getProperty(CEF_DEVOLUTIVA_PROCESSED_PROP_PREFIX_ + messageId) === '1'
+}
+
+function analisarPropriedadesDevolutivaCef() {
+  const result = cefDevolutivaAnalyzeScriptProperties_(CEF_DEVOLUTIVA_DEFAULT_KEEP_PROCESSED_PROPS_)
+  Logger.log(JSON.stringify(result, null, 2))
+  return result
+}
+
+function limparTodasPropriedadesHistoricoDevolutivaCef() {
+  const props = PropertiesService.getScriptProperties()
+  const before = props.getProperties()
+  const allKeys = Object.keys(before)
+  const removed = []
+
+  for (let i = 0; i < allKeys.length; i++) {
+    const key = allKeys[i]
+    if (cefDevolutivaIsManagedPropertyKey_(key)) {
+      props.deleteProperty(key)
+      removed.push(key)
+    }
+  }
+
+  const after = props.getProperties()
+  const result = {
+    ok: true,
+    beforeTotal: allKeys.length,
+    afterTotal: Object.keys(after).length,
+    removedCount: removed.length,
+    removedSample: removed.slice(0, 100),
+    preservedNote: 'Foram removidas somente propriedades CEF_DEVOLUTIVA_GMAIL_PROCESSED_* e CEF_DEVOLUTIVA_GMAIL_ERROR_*. Configuracoes do Pipedrive foram preservadas.'
+  }
+  Logger.log(JSON.stringify(result, null, 2))
+  return result
+}
+
+function cefDevolutivaAnalyzeScriptProperties_(keepProcessedCount) {
+  const props = PropertiesService.getScriptProperties().getProperties()
+  const keys = Object.keys(props).sort()
+  const keepLimit = Math.max(0, Number(keepProcessedCount || 0))
+  const processed = []
+  const processedData = []
+  const errors = []
+  const requiredConfig = []
+  const optionalConfig = []
+  const unrelated = []
+  const keep = {}
+
+  const requiredNames = {
+    PIPEDRIVE_TOKEN: true,
+    PIPEDRIVE_API_TOKEN: true,
+    PD_API_KEY: true,
+    BASE_URL: true,
+    PIPEDRIVE_BASE_URL: true,
+    PD_BASE_URL: true,
+    PIPEDRIVE_DOMAIN: true
+  }
+  const optionalNames = {
+    CEF_DEVOLUTIVA_TEST_MESSAGE_ID: true,
+    CEF_DEVOLUTIVA_TEST_EXECUTE_FLUXO_COMPLETO: true
+  }
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    if (requiredNames[key]) {
+      requiredConfig.push(key)
+      keep[key] = true
+    } else if (optionalNames[key]) {
+      optionalConfig.push(key)
+      keep[key] = true
+    } else if (key.indexOf(CEF_DEVOLUTIVA_PROCESSED_PROP_PREFIX_) === 0) {
+      if (key.slice(-5) === '_DATA') processedData.push(key)
+      else processed.push(key)
+    } else if (key.indexOf(CEF_DEVOLUTIVA_ERROR_PROP_PREFIX_) === 0) {
+      errors.push(key)
+    } else {
+      unrelated.push(key)
+      keep[key] = true
+    }
+  }
+
+  const processedSorted = processed.sort()
+  const keepProcessedStart = Math.max(0, processedSorted.length - keepLimit)
+  for (let p = keepProcessedStart; p < processedSorted.length; p++) {
+    keep[processedSorted[p]] = true
+    keep[processedSorted[p] + '_DATA'] = true
+  }
+
+  const removable = []
+  for (let r = 0; r < keys.length; r++) {
+    const candidate = keys[r]
+    if (!keep[candidate] && cefDevolutivaIsManagedPropertyKey_(candidate)) removable.push(candidate)
+  }
+
+  return {
+    ok: true,
+    total: keys.length,
+    requiredConfig: requiredConfig,
+    optionalConfig: optionalConfig,
+    managed: {
+      processed: processed.length,
+      processedData: processedData.length,
+      errors: errors.length
+    },
+    unrelatedCount: unrelated.length,
+    keepProcessedCount: Math.min(keepLimit, processedSorted.length),
+    removableCount: removable.length,
+    removableSample: removable.slice(0, 50),
+    note: 'A limpeza preserva configuracoes e propriedades de outras automacoes; remove apenas historico gerado por esta automacao.'
+  }
+}
+
+function cefDevolutivaIsManagedPropertyKey_(key) {
+  return String(key || '').indexOf(CEF_DEVOLUTIVA_PROCESSED_PROP_PREFIX_) === 0 ||
+    String(key || '').indexOf(CEF_DEVOLUTIVA_ERROR_PROP_PREFIX_) === 0
 }
 
 function cefDevolutivaWasProcessedMessage_(message) {
