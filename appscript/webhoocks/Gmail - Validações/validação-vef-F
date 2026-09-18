@@ -31,6 +31,8 @@ const CEF_DEVOLUTIVA_INI_IPTU_FIELD_KEY_ = 'd45dce63cd44cea8eaeb78c2dc558527c49c
 const CEF_DEVOLUTIVA_INI_CONDOMINIO_FIELD_KEY_ = 'ef52f41da4e2bc241da4bd1ab6c7a5940d0cfe2d'
 const CEF_DEVOLUTIVA_ATESTE_IPTU_DATA_FIELD_KEY_ = '1463f7080f9572cd2bf480362a1e917c008460e8'
 const CEF_DEVOLUTIVA_ATESTE_CONDOMINIO_DATA_FIELD_KEY_ = '0d9c4aab2ee0bd18d78fb1fd3b32f403f0642eb2'
+const CEF_DEVOLUTIVA_DATA_TERMINO_IPTU_FIELD_KEY_ = '46f5eea72dbdcd18c9c19d2ddee73bff046fc14b'
+const CEF_DEVOLUTIVA_DATA_TERMINO_CONDOMINIO_FIELD_KEY_ = '2c3da637bcb6a12f68f20a24f734c89698d98f81'
 
 const CEF_DEVOLUTIVA_REL_IPTU_ = 'DÉBITOS/IPTU'
 const CEF_DEVOLUTIVA_REL_CONDOMINIO_ = 'DÉBITOS/CONDOMÍNIO'
@@ -815,6 +817,7 @@ function processarMensagemDevolutivaCef_(message) {
   }
 
   const patch = cefDevolutivaBuildDealPatch_(classification.relation)
+  cefDevolutivaClearDataTerminoIfFilled_(deal, classification.relation, patch)
   cefDevolutivaCallPipedrive_('deals/' + encodeURIComponent(String(deal.id)), 'PUT', patch)
 
   cefDevolutivaMarkProcessed_(messageId, {
@@ -1435,6 +1438,31 @@ function cefDevolutivaBuildDealPatch_(relation) {
   }
 
   throw new Error('Relação inválida para patch do deal: ' + relation)
+}
+
+/**
+ * Limpa o campo "Data término" (IPTU ou Condomínio) no patch do deal,
+ * caso ele já esteja preenchido. Aplica-se SOMENTE ao fluxo de Análise
+ * Documental – nunca ao fluxo de Ateste de Pagamento.
+ */
+function cefDevolutivaClearDataTerminoIfFilled_(deal, relation, patch) {
+  var fieldKey = ''
+  if (relation === CEF_DEVOLUTIVA_REL_IPTU_) {
+    fieldKey = CEF_DEVOLUTIVA_DATA_TERMINO_IPTU_FIELD_KEY_
+  } else if (relation === CEF_DEVOLUTIVA_REL_CONDOMINIO_) {
+    fieldKey = CEF_DEVOLUTIVA_DATA_TERMINO_CONDOMINIO_FIELD_KEY_
+  }
+  if (!fieldKey) return
+
+  var currentValue = cefDevolutivaGetDealFieldValue_(deal, fieldKey)
+  if (!cefDevolutivaIsEmptyPipedriveValue_(currentValue)) {
+    patch[fieldKey] = ''
+    cefDevolutivaLog_('INFO', deal.id || '', '', 'data_termino_cleared', {
+      relation: relation,
+      fieldKey: fieldKey,
+      previousValue: currentValue
+    })
+  }
 }
 
 function cefDevolutivaGetPrimeiroAtesteFieldConfig_(relation) {
