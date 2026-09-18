@@ -1954,7 +1954,12 @@ function cefDevolutivaMarkMessageProcessedLabel_(message, processedLabel) {
   if (!message || !message.getThread) return
   const thread = message.getThread()
   if (!thread) return
-  ;(processedLabel || cefDevolutivaGetProcessedLabel_()).addToThread(thread)
+  try {
+    ;(processedLabel || cefDevolutivaGetProcessedLabel_()).addToThread(thread)
+  } catch (err) {
+    // A propriedade de processado já foi persistida; o rótulo é apenas visual.
+    console.warn('Não foi possível adicionar o rótulo de processado no Gmail: ' + String(err && err.message ? err.message : err))
+  }
 }
 
 function cefDevolutivaGetProcessedLabel_() {
