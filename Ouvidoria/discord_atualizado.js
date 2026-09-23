@@ -1,9 +1,7 @@
 // Preferir Script Properties (mais seguro e fácil de trocar sem republicar script).
-// Chaves esperadas:
-// - DISCORD_WEBHOOK_URL (Financiamento)
-// - DISCORD_WEBHOOK_NPS_URL (NPS líderes)
-// Fallbacks mantidos apenas para compatibilidade (recomendado remover após configurar as properties).
-const DISCORD_WEBHOOK_URL_FALLBACK = 'https://discord.com/api/webhooks/1498024906841919650/TM5WKzJ9Xuw_AESYxWBLNKJ827BLH8wJ4iiJXfxKa7lh9q_snrEvye0bJLQvw5LELbZc'; //financiamento
+// Chave esperada: DISCORD_WEBHOOK_NPS_URL (Ouvidoria Líderes).
+// Fallback mantido apenas para compatibilidade (recomendado removê-lo após
+// configurar a Script Property).
 const DISCORD_WEBHOOK_NPS_URL_FALLBACK = 'https://discord.com/api/webhooks/1503745411498774548/iTUXvcQKmPZylb_WobEhpi7A3raqMbzW5Vc5WzObnmv1dPZyig_ggPSJubASU5YCxOM7'; // nps
 
 function getDiscordWebhookUrl_(kind) {
@@ -12,10 +10,6 @@ function getDiscordWebhookUrl_(kind) {
   const fromProps = String(props.getProperty(key) || '').trim();
   if (fromProps) return fromProps;
 
-  if (key === 'DISCORD_WEBHOOK_URL') {
-    Logger.log('⚠️ DISCORD_WEBHOOK_URL não configurado em Script Properties. Usando fallback hardcoded.');
-    return DISCORD_WEBHOOK_URL_FALLBACK;
-  }
   if (key === 'DISCORD_WEBHOOK_NPS_URL') {
     Logger.log('⚠️ DISCORD_WEBHOOK_NPS_URL não configurado em Script Properties. Usando fallback hardcoded.');
     return DISCORD_WEBHOOK_NPS_URL_FALLBACK;
@@ -27,21 +21,22 @@ function getDiscordWebhookUrl_(kind) {
 const ABA_OUVIDORIA = 'Ouvidoria';
 
 const COLUMN_MAPPING = {
-  // Novo mapeamento (colunas por letra):
-  // - Contato realizado com o cliente: E (5)
-  // - Descrição da reclamação: Q (17)
-  // - Causa raiz: S (19)
-  // - Setor: T (20)
-  // - Proprietário: U (21)
-  // - Executor: V (22)
-  // - Líder: W (23)
-  // - Origem: X (24)
+  // Mapeamento da aba Ouvidoria (40 colunas):
+  // - Contato realizado com o cliente: F (6)
+  // - Descrição da reclamação: R (18)
+  // - Ação efetiva: S (19)
+  // - Causa raiz: T (20)
+  // - Setor: U (21)
+  // - Proprietário: V (22)
+  // - Executor: W (23)
+  // - Líder: X (24)
+  // - Origem: Y (25)
   // - Imóvel: A (1)
   // - Proponente principal: B (2)
   // - Telefone do cliente: C (3)
-  // - Recorrência Imóvel: L (12)
-  // - Recorrência Assunto: M (13)
-  // - Recorrência NPS: N (14)
+  // - Recorrência Imóvel: M (13)
+  // - Recorrência Assunto: N (14)
+  // - Recorrência NPS: O (15)
   //
   // Fallbacks desativados por padrão (evita ler campo errado quando o layout muda).
   COD_IMOVEL_PRIMARY: 1,           // Coluna A
@@ -49,24 +44,24 @@ const COLUMN_MAPPING = {
   NOME_PROPONENTE_PRIMARY: 2,      // Coluna B
   NOME_PROPONENTE_FALLBACK: 0,
   TELEFONE_CLIENTE: 3,             // Coluna C
-  CONTATO_CLIENTE_PRIMARY: 5,      // Coluna E (Sim/Não)
+  CONTATO_CLIENTE_PRIMARY: 6,      // Coluna F (Sim/Não)
   CONTATO_CLIENTE_FALLBACK: 0,
-  DESCRICAO_RECLAMACAO_PRIMARY: 17,// Coluna Q
+  DESCRICAO_RECLAMACAO_PRIMARY: 18,// Coluna R
   DESCRICAO_RECLAMACAO_FALLBACK: 0,
-  ACAO_EFETIVA: 18,                // Coluna R - Ação efetiva
-  CAUSA_RAIZ_PRIMARY: 19,          // Coluna S
+  ACAO_EFETIVA: 19,                // Coluna S - Ação efetiva
+  CAUSA_RAIZ_PRIMARY: 20,          // Coluna T
   CAUSA_RAIZ_FALLBACK: 0,
-  SETOR_PRIMARY: 20,               // Coluna T
+  SETOR_PRIMARY: 21,               // Coluna U
   SETOR_FALLBACK: 0,
-  EXECUTOR_PRIMARY: 22,            // Coluna V
+  EXECUTOR_PRIMARY: 23,            // Coluna W
   EXECUTOR_FALLBACK: 0,
-  LIDER_PRIMARY: 23,               // Coluna W
+  LIDER_PRIMARY: 24,               // Coluna X
   LIDER_FALLBACK: 0,
-  ORIGEM_PRIMARY: 24,              // Coluna X
+  ORIGEM_PRIMARY: 25,              // Coluna Y
   ORIGEM_FALLBACK: 0,
-  RECORRENCIA_IMOVEL: 12,          // Coluna L
-  RECORRENCIA_ASSUNTO: 13,         // Coluna M
-  RECORRENCIA_NPS: 14              // Coluna N
+  RECORRENCIA_IMOVEL: 13,          // Coluna M
+  RECORRENCIA_ASSUNTO: 14,         // Coluna N
+  RECORRENCIA_NPS: 15              // Coluna O
 };
 
 const DISCORD_USERS_BY_LIDER_NAME = {
@@ -88,6 +83,7 @@ const DISCORD_USERS_BY_LIDER_NAME = {
 const DISCORD_USERS_BY_EXECUTOR_NAME = {
   'ana carolina': '1364674206272327713',
   'jessica franklin': '1491411696236101683',
+  'jessica francklin': '1491411696236101683',
   'daniela silva': '1489378396894138572',
   'ana souza': '1489359034908807290',
   'isadora campos': '1478793740733776022',
@@ -202,6 +198,13 @@ function aoEditarCelula(e) {
         '" | causaRaiz="' + dadosNps.causaRaiz + '"'
       );
 
+      if (!campoObrigatorioPreenchido_(dadosNps.contatoCliente)) {
+        const contatoPendente = 'Não enviou: campo "Contato Realizado?" pendente (coluna F)';
+        sheet.getRange(row, logDiscordCol).setValue(contatoPendente);
+        Logger.log('⚠️ Discord não enviado na linha ' + row + ': campo "Contato Realizado?" pendente.');
+        continue;
+      }
+
       if (discordRateLimitAtivo_()) {
         sheet.getRange(row, logDiscordCol).setValue(
           'Não enviou: Discord em rate limit temporário. Tente novamente em instantes.'
@@ -218,23 +221,9 @@ function aoEditarCelula(e) {
         continue;
       }
 
-      // NPS de Financiamento usa o webhook de notificações-ouvidoria, nunca
-      // o webhook padrão de líderes.
-      if (
-        isOrigemNpsDiscord_(dadosNps.origem) &&
-        isSetorFinanciamentoDiscord(dadosNps.setor) &&
-        processarFinanciamentoDiscord_(sheet, row, dadosNps, logDiscordCol)
-      ) {
-        continue;
-      }
-
       if (processarNpsPadraoDiscord_(sheet, row, dadosNps, logDiscordCol)) {
         continue;
       }
-
-     if (processarFinanciamentoDiscord_(sheet, row, dadosNps, logDiscordCol)) {
-  continue;
-}
 
 function dedupeDiscordRowEvent_(sheet, row) {
   try {
@@ -255,7 +244,7 @@ function dedupeDiscordRowEvent_(sheet, row) {
       Logger.log(
         'Discord não enviado na linha ' +
         row +
-        ': não é NPS Atendimento, NPS padrão nem Financiamento. Origem="' +
+        ': não atende às regras de NPS para envio ao Discord. Origem="' +
         dadosNps.origem +
         '", Setor="' +
         dadosNps.setor +
@@ -468,7 +457,7 @@ function validarDadosDiscordFinanciamentoDireto_(dados) {
   }
 
   if (!campoObrigatorioPreenchido_(dados.contatoCliente)) {
-    return { ok: false, reason: 'contato realizado com o cliente vazio (coluna ' + COLUMN_MAPPING.CONTATO_CLIENTE_PRIMARY + ')' };
+    return { ok: false, reason: 'campo "Contato Realizado?" pendente (coluna ' + COLUMN_MAPPING.CONTATO_CLIENTE_PRIMARY + ')' };
   }
 
   return { ok: true };
@@ -491,18 +480,10 @@ Ação efetiva a ser executada para concluir a ouvidoria : ${dados.acaoEfetiva}`
 }
 
 function enviarNotificacaoDiscordFinanciamentoDireto_(dados) {
-  const mensagem = construirMensagemDiscordFinanciamentoDireto_(dados);
-  const executorDiscordUserIds = resolverDiscordUserIdsPorExecutorFinanciamento_(dados.executor);
-
-  const payload = {
-    content: mensagem,
-    username: '𒀭 Sistemas - SmartCaixa',
-    allowed_mentions: executorDiscordUserIds.length
-      ? { users: executorDiscordUserIds }
-      : { parse: [] }
-  };
-
-  return enviarPayloadDiscord_(getDiscordWebhookUrl_('DISCORD_WEBHOOK_URL'), payload, 'Financiamento');
+  throw new Error(
+    'Envio direto de Financiamento ao canal notificações-ouvidoria foi desativado. ' +
+    'Use as regras NPS, que enviam somente ao canal Ouvidoria Líderes.'
+  );
 }
 
 function resolverDiscordUserIdsPorExecutorFinanciamento_(executorRaw) {
@@ -774,23 +755,8 @@ function coletarDadosNpsAguardandoCampos_(sheet, row) {
 }
 
 function camposMinimosDiscordProntos_(dados) {
-  const setor = String(dados && dados.setor ? dados.setor : '').trim();
-  const setorFin = isSetorFinanciamentoDiscord(setor);
-
-  // Para Financiamento, a Origem não é obrigatória para envio. O que costuma atrasar
-  // é preenchimento por automação (proponente/descrição/ação). Então aguardamos esses campos.
-  if (setorFin) {
-    return (
-      campoObrigatorioPreenchido_(dados.setor) &&
-      campoObrigatorioPreenchido_(dados.codImovel) &&
-      campoObrigatorioPreenchido_(dados.nomeProponente) &&
-      campoObrigatorioPreenchido_(dados.descricaoReclamacao) &&
-      campoObrigatorioPreenchido_(dados.acaoEfetiva) &&
-      campoObrigatorioPreenchido_(dados.contatoCliente)
-    );
-  }
-
-  // NPS: exige origem + setor + executor + líder + confirmação de contato.
+  // Todos os setores, inclusive Financiamento, seguem a regra NPS: exige
+  // origem + setor + executor + líder + confirmação de contato.
   return (
     campoObrigatorioPreenchido_(dados.origem) &&
     campoObrigatorioPreenchido_(dados.setor) &&
@@ -889,8 +855,14 @@ function isSetorFinanciamentoDiscord(setor) {
 function isOrigemNpsDiscord_(origem) {
   const origemNorm = normalizarTextoDiscord(origem);
 
-  // A coluna Origem agora vem como "NPS 1" ou "NPS 2".
-  return origemNorm === 'nps 1' || origemNorm === 'nps 2' || origemNorm === 'nps';
+  return (
+    origemNorm === 'nps 1' ||
+    origemNorm === 'nps 2' ||
+    origemNorm === 'nps' ||
+    origemNorm === 'reclame aqui' ||
+    origemNorm === 'notificacao operacional' ||
+    origemNorm === 'ceven notificacao operacional'
+  );
 }
 
 function isOrigemNps1ou2Discord_(origem) {
@@ -902,7 +874,8 @@ function obterNotaNpsParaMensagem_(origem) {
   const origemNorm = normalizarTextoDiscord(origem);
   if (origemNorm === 'nps 1') return 'nota 1';
   if (origemNorm === 'nps 2') return 'nota 2';
-  return 'NPS';
+  if (origemNorm === 'nps') return 'NPS';
+  return String(origem || '').trim();
 }
 
 function isSetorAtendimentoPosArrematacaoDiscord_(setor) {
@@ -942,7 +915,7 @@ function campoObrigatorioCodigoImovelPreenchido_(valor) {
 
 function validarDadosNpsDiscordAtendimento(dados) {
   if (!campoObrigatorioPreenchido_(dados.contatoCliente)) {
-    return { ok: false, reason: 'contato realizado com o cliente vazio (coluna ' + COLUMN_MAPPING.CONTATO_CLIENTE_PRIMARY + ')' };
+    return { ok: false, reason: 'campo "Contato Realizado?" pendente (coluna ' + COLUMN_MAPPING.CONTATO_CLIENTE_PRIMARY + ')' };
   }
 
   if (!campoObrigatorioPreenchido_(dados.setor)) {
@@ -981,7 +954,10 @@ function validarDadosNpsDiscordAtendimento(dados) {
   }
 
   if (!isOrigemNps1ou2Discord_(dados.origem) && !isOrigemNpsDiscord_(dados.origem)) {
-    return { ok: false, reason: 'origem diferente de NPS 1/2' };
+    return {
+      ok: false,
+      reason: 'origem não permitida para envio ao Discord'
+    };
   }
 
   if (!isSetorAtendimentoPosArrematacaoDiscord_(dados.setor)) {
@@ -996,7 +972,7 @@ function validarDadosNpsDiscordAtendimento(dados) {
 
 function validarDadosNpsDiscord(dados) {
   if (!campoObrigatorioPreenchido_(dados.contatoCliente)) {
-    return { ok: false, reason: 'contato realizado com o cliente vazio (coluna ' + COLUMN_MAPPING.CONTATO_CLIENTE_PRIMARY + ')' };
+    return { ok: false, reason: 'campo "Contato Realizado?" pendente (coluna ' + COLUMN_MAPPING.CONTATO_CLIENTE_PRIMARY + ')' };
   }
 
   if (!campoObrigatorioPreenchido_(dados.setor)) {
@@ -1035,7 +1011,10 @@ function validarDadosNpsDiscord(dados) {
   }
 
   if (!isOrigemNps1ou2Discord_(dados.origem) && !isOrigemNpsDiscord_(dados.origem)) {
-    return { ok: false, reason: 'origem diferente de NPS 1/2' };
+    return {
+      ok: false,
+      reason: 'origem não permitida para envio ao Discord'
+    };
   }
 
   if (isSetorAtendimentoPosArrematacaoDiscord_(dados.setor)) {
@@ -1049,7 +1028,7 @@ function validarDadosNpsDiscord(dados) {
 }
 
 function construirMensagemDiscordNpsAtendimento(dados) {
-  const origemLabel = isOrigemNps1ou2Discord_(dados.origem) ? String(dados.origem).trim() : 'NPS';
+  const origemLabel = String(dados.origem || '').trim();
   const notaLabel = obterNotaNpsParaMensagem_(dados.origem);
   const executorComMencao = dados.executorComMencao;
   const liderComMencao = dados.mencaoLider
@@ -1084,9 +1063,8 @@ function construirMensagemDiscordNpsAtendimento(dados) {
 }
 
 function construirMensagemDiscordNps(dados) {
-  const origemLabel = isOrigemNps1ou2Discord_(dados.origem) ? String(dados.origem).trim() : 'NPS';
+  const origemLabel = String(dados.origem || '').trim();
   const notaLabel = obterNotaNpsParaMensagem_(dados.origem);
-  const executorComMencao = dados.executorComMencao;
   const liderComMencao = dados.mencaoLider
     ? dados.mencaoLider + ' ' + dados.lider
     : dados.lider;
@@ -1094,9 +1072,9 @@ function construirMensagemDiscordNps(dados) {
   const mensagem =
 `⚠️ **NOTIFICAÇÃO ${origemLabel} | OUVIDORIA ${dados.setor}** ⚠️
 
-🚨 **Recebemos uma avaliação de ${notaLabel} referente**🚨 
+🚨 **Recebemos uma avaliação de ${notaLabel}** 🚨
 
-**Responsável** : ${executorComMencao}
+**Responsável** : ${dados.executor}
 
 **Líder** : ${liderComMencao}
 
@@ -1134,9 +1112,6 @@ function enviarNotificacaoDiscordNps(dados) {
   const mensagem = construirMensagemDiscordNps(dados);
   const mentions = [];
   if (dados.liderDiscordUserId) mentions.push(dados.liderDiscordUserId);
-  if (dados.executorDiscordUserIds && dados.executorDiscordUserIds.length) {
-    mentions.push.apply(mentions, dados.executorDiscordUserIds);
-  }
 
   const payload = {
     content: mensagem,
@@ -1576,14 +1551,14 @@ function diagnosticarLeituraDiscordLinha(row) {
     A_IMOVEL: 1,
     B_PROPONENTE: 2,
     C_TELEFONE: 3,
-    Q_DESCRICAO: 17,
-    R_ACAO: 18,
-    S_CAUSA_RAIZ: 19,
-    T_SETOR: 20,
-    U_OWNER: 21,
-    V_EXECUTOR: 22,
-    W_LIDER: 23,
-    X_ORIGEM: 24
+    R_DESCRICAO: 18,
+    S_ACAO: 19,
+    T_CAUSA_RAIZ: 20,
+    U_SETOR: 21,
+    V_OWNER: 22,
+    W_EXECUTOR: 23,
+    X_LIDER: 24,
+    Y_ORIGEM: 25
   };
 
   const snapshot = {};

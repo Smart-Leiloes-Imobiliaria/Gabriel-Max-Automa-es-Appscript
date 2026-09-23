@@ -4,26 +4,57 @@ const CONFIG = {
   EQUIPE_SHEET_NAME: 'Equipe',
   SHEET_NAME: 'Ouvidoria',
 
-  COL_IMOVEL: 1,                  // A - Imovel
-  COL_PROPONENTE: 2,              // B - Proponente Principal
-  COL_TELEFONE: 3,                // C - Telefone do cliente
-  COL_DATA_ABERT: 4,              // E - Data Abertura Ouvidoria
+  // Layout da aba Ouvidoria (40 colunas).
+  COL_IMOVEL: 1,                         // A - Imóvel
+  COL_PROPONENTE: 2,                     // B - Proponente Principal
+  COL_TELEFONE: 3,                       // C - Telefone Cliente
+  COL_DATA_ABERT: 4,                     // D - Data Abertura Ouvidoria
+  COL_DATA_CONTATO: 5,                   // E - Data de Contato
+  COL_CONTATO_REALIZADO: 6,              // F - Contato Realizado?
+  COL_ANO_MES_ABERTURA: 7,               // G - Ano/mes abertura
+  COL_DATA_CONCLUSAO: 8,                 // H - Data de Conclusão
+  COL_TEMPO_CONCLUSAO: 9,                // I - Tempo de conclusao (dias)
+  COL_DATA_CRIACAO_ATIVIDADE: 10,        // J - Data da criação da atividade
+  COL_DATA_ACAO_EFETIVA: 11,             // K - Data da Ação Efetiva
+  COL_TEMPO_CONCLUSAO_ACAO_EFETIVA: 12,  // L - Tempo de Conclusão da Ação Efetiva
+  COL_RECORRENCIA: 13,                   // M - Recorrência Imóvel
+  COL_RECORRENCIA_ASSUNTO: 14,           // N - Recorrência Assunto
+  COL_RECORRENCIA_NPS: 15,               // O - Recorrência NPS
+  COL_CRITICIDADE: 16,                   // P - Criticidade
+  COL_STATUS: 17,                        // Q - Status
+  COL_DESC: 18,                          // R - Descrição da reclamação
+  COL_ACAO: 19,                          // S - Ação efetiva
+  COL_CAUSA_RAIZ: 20,                    // T - Causa raiz
+  COL_SETOR: 21,                         // U - Setor
+  COL_OWNER: 22,                         // V - Proprietário
+  COL_PROPRIETARIO: 22,                  // V - Alias legado de Proprietário
+  COL_EXEC: 23,                          // W - Executor
+  COL_LIDER: 24,                         // X - Líder
+  COL_ORIGEM: 25,                        // Y - Origem
+  COL_DIA1_ATUALIZACOES: 26,             // Z
+  COL_DIA1_CONFORMIDADE: 27,             // AA
+  COL_DIA2_ATUALIZACOES: 28,             // AB
+  COL_DIA2_CONFORMIDADE: 29,             // AC
+  COL_DIA3_ATUALIZACOES: 30,             // AD
+  COL_DIA3_CONFORMIDADE: 31,             // AE
+  COL_DIA4_ATUALIZACOES: 32,             // AF
+  COL_DIA4_CONFORMIDADE: 33,             // AG
+  COL_DIA5_ATUALIZACOES: 34,             // AH
+  COL_DIA5_CONFORMIDADE: 35,             // AI
+  COL_TEMPO_CONCLUSAO_EXECUTOR: 36,      // AJ
+  COL_NOTIF_HASH: 37,                    // AK
+  COL_LOG_AUTOMACAO: 38,                 // AL
+  COL_LOG_ATIVIDADES: 39,                // AM
+  COL_LOG_DISCORD: 40,                   // AN
 
-  COL_RECORRENCIA: 12,            // L - Recorrência Imóvel
-  COL_RECORRENCIA_ASSUNTO: 13,    // M - Recorrência Assunto
-  COL_RECORRENCIA_NPS: 14,        // N - Recorrência NPS
-
-  COL_DESC: 17,                   // Q - Descrição da reclamação
-  COL_ACAO: 18,                   // R - Ação efetiva
-
-  COL_SETOR: 20,                  // T - Setor
-  COL_OWNER: 21,                  // U - Proprietário/Co-proprietário
-  COL_EXEC: 22,                   // V - Executor
-  COL_LIDER: 23,                  // W - Líder
-  COL_ORIGEM: 24,                 // X - Origem
-
-  EQUIPE_COL_NOME: 2,
-  EQUIPE_COL_LIDER: 5,
+  // Layout da aba Equipe:
+  // Linha 1: aviso ignorado | Linha 2: cabecalho | Linha 3+: dados.
+  // A Setor | B Nome | C E-mail | D Cargo | E Horário de entrada |
+  // F Horário de saída | G Tutor | H Líder | I Coordenador.
+  EQUIPE_HEADER_ROW: 2,
+  EQUIPE_DATA_START_ROW: 3,
+  EQUIPE_COL_NOME: 2,                  // B - NOME
+  EQUIPE_COL_LIDER: 8,                 // H - LIDER
 
   SETOR_UPDATE_WAIT_MS: 8000,
   PRIORITY_FIELD_KEY: "priority",
@@ -44,7 +75,7 @@ const CONFIG = {
     },
 
     '1dbb1d3c497001898a92edd0a1799d19485bf26e': {
-      '412': 'Terceiro',
+      '412': 'Parceiro',
       '1494': 'Terceiro Substituto',
       '359': 'Smart',
       '683': 'Gerente externo (FGTS)',
@@ -97,29 +128,67 @@ const EXECUTORES = [
 function normalizarExecutorParaBuscaLider_(executorRaw) {
   return String(executorRaw || '')
     .replace(/\(Você\)/gi, '')
-    .replace(/^(Interno|Externo)\s*[-–—:]\s*/i, '')
+    .replace(/^\s*(Interno|Externo)\s*[-–—:]\s*/i, '')
+    .replace(/^\s*Propriet[aá]rio\s*[-–—:]\s*/i, '')
+    .replace(/^\s*Parceiro\s*[-–—:]\s*/i, '')
+    .replace(/^\s*Cart[oó]rio\s*[-–—:]\s*/i, '')
+    .replace(/^\s*Interno\s*[-–—:]?\s*CCA\s*[-–—:]?\s*/i, '')
+    .replace(/^\s*CCA\s*[-–—:]?\s*/i, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+function resolverColunaEquipePorCabecalho_(sheet, aliases, fallbackCol) {
+  if (!sheet || sheet.getLastColumn() < 1) return fallbackCol;
+
+  var headerRow = CONFIG.EQUIPE_HEADER_ROW || 1;
+  if (sheet.getLastRow() < headerRow) return fallbackCol;
+
+  var headers = sheet
+    .getRange(headerRow, 1, 1, sheet.getLastColumn())
+    .getDisplayValues()[0];
+  var aliasesNorm = (aliases || []).map(function(alias) {
+    return normalizarTextoComparacao_(alias);
+  });
+
+  for (var i = 0; i < headers.length; i++) {
+    if (aliasesNorm.indexOf(normalizarTextoComparacao_(headers[i])) !== -1) {
+      return i + 1;
+    }
+  }
+
+  Logger.log(
+    'Cabeçalho da aba Equipe não encontrado para ' + JSON.stringify(aliases) +
+    '. Usando coluna fallback ' + fallbackCol + '.'
+  );
+  return fallbackCol;
+}
+
 function preencherLiderDaLinha_(sheet, row, executorRaw) {
-  // No fluxo de parceiro/terceiro, V mantém o parceiro executor e U recebe
-  // Pedro Rocha como responsável. Nessa situação, W deve refletir o líder de
-  // Pedro na aba Equipe, sem alterar o executor selecionado em V.
+  var cellLider = sheet.getRange(row, CONFIG.COL_LIDER);
+  var liderAnterior = String(cellLider.getDisplayValue() || '').trim();
+  var fonteLider = 'Executor (W)';
+
+  // No fluxo de parceiro/terceiro, W mantém o parceiro executor e V recebe
+  // Pedro Rocha como responsável. Nessa situação, X deve refletir o líder de
+  // Pedro na aba Equipe, sem alterar o executor selecionado em W.
   var responsavelRaw = String(
     sheet.getRange(row, CONFIG.COL_OWNER).getDisplayValue() || ''
   ).trim();
 
   if (normalizarTextoComparacao_(responsavelRaw) === 'pedro rocha') {
     executorRaw = responsavelRaw;
+    fonteLider = 'Responsável (V)';
     Logger.log(
       'Linha ' + row +
-      ': responsável Pedro Rocha identificado em U; líder será buscado para Pedro na aba Equipe.'
+      ': responsável Pedro Rocha identificado em V; líder será buscado para Pedro na aba Equipe.'
     );
   }
 
   var executorTexto = normalizarExecutorParaBuscaLider_(executorRaw);
 
   if (!executorTexto) {
+    cellLider.clearContent();
     Logger.log('Linha ' + row + ': executor vazio, não foi possível buscar líder.');
     return;
   }
@@ -132,28 +201,36 @@ function preencherLiderDaLinha_(sheet, row, executorRaw) {
     .filter(Boolean);
 
   if (!executores.length) {
+    cellLider.clearContent();
     Logger.log('Linha ' + row + ': nenhum executor válido para buscar líder.');
     return;
   }
 
-  garantirValidacaoPadraoLider_(sheet, row);
-  SpreadsheetApp.flush();
-
-  var cellLider = sheet.getRange(row, CONFIG.COL_LIDER);
-
   for (var i = 0; i < executores.length; i++) {
     var executorNome = executores[i];
-    var lider = buscarLiderNaAbaEquipe_(executorNome);
+    var lider = buscarLiderNaAbaEquipe_(executorNome, sheet.getParent());
 
     Logger.log(
       'Linha ' + row +
-      ': executor testado="' + executorNome +
-      '", líder encontrado="' + lider + '"'
+      ': fonte="' + fonteLider +
+      '", executor testado="' + executorNome +
+      '", líder encontrado="' + lider +
+      '", líder anterior="' + liderAnterior + '"'
     );
 
     if (!lider) continue;
 
+    // Mantém a validação atual quando ela já aceita o líder encontrado.
+    garantirValidacaoPadraoLider_(sheet, row, false);
     var liderValidado = selecionarOpcaoExistenteNaValidacao_(cellLider, lider);
+
+    // Se a lista estiver desatualizada, atualiza pela aba Equipe e tenta uma
+    // segunda vez. A validação nunca é alterada sem um líder já encontrado.
+    if (!liderValidado) {
+      garantirValidacaoPadraoLider_(sheet, row, true);
+      SpreadsheetApp.flush();
+      liderValidado = selecionarOpcaoExistenteNaValidacao_(cellLider, lider);
+    }
 
     if (liderValidado) {
       cellLider.setValue(liderValidado);
@@ -174,6 +251,8 @@ function preencherLiderDaLinha_(sheet, row, executorRaw) {
     );
   }
 
+  // Nunca conserva o líder de um executor anterior quando a nova busca falha.
+  cellLider.clearContent();
   Logger.log(
     'Linha ' + row +
     ': nenhum líder foi preenchido para os executores: ' +
@@ -181,97 +260,102 @@ function preencherLiderDaLinha_(sheet, row, executorRaw) {
   );
 }
 
-// Exceção de negócio exclusiva para Financiamento: a coluna W deve registrar
-// Kauã Amorim. Diferente do fluxo geral, não consulta o líder do executor na
-// aba Equipe, pois Kauã é o responsável definido para este setor.
-function preencherLiderFinanciamentoDaLinha_(sheet, row) {
-  var liderNome = 'Kauã Amorim';
-  garantirValidacaoPadraoLider_(sheet, row);
-  SpreadsheetApp.flush();
-
-  var cellLider = sheet.getRange(row, CONFIG.COL_LIDER);
-  var liderValidado = selecionarOpcaoExistenteNaValidacao_(cellLider, liderNome);
-
-  if (liderValidado) {
-    cellLider.setValue(liderValidado);
-    Logger.log('Linha ' + row + ': Financiamento — líder definido como "' + liderValidado + '".');
-    return;
-  }
-
-  Logger.log(
-    'Linha ' + row + ': Financiamento — "' + liderNome +
-    '" não está disponível na validação da coluna de líder.'
-  );
-}
-
-function buscarLiderNaAbaEquipe_(nomeExecutor) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+function buscarLiderNaAbaEquipe_(nomeExecutor, spreadsheet) {
+  var ss = spreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var equipeSheet = ss.getSheetByName(CONFIG.EQUIPE_SHEET_NAME);
 
   if (!equipeSheet) {
 throw new Error('Aba "' + CONFIG.EQUIPE_SHEET_NAME + '" não encontrada.');  }
 
   var lastRow = equipeSheet.getLastRow();
+  var dataStartRow = CONFIG.EQUIPE_DATA_START_ROW || 2;
 
-  if (lastRow < 2) {
+  if (lastRow < dataStartRow) {
     return '';
   }
 
-  var lastCol = Math.max(CONFIG.EQUIPE_COL_NOME
-, CONFIG.EQUIPE_COL_LIDER);
-  var values = equipeSheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var colNome = resolverColunaEquipePorCabecalho_(
+    equipeSheet,
+    ['NOME'],
+    CONFIG.EQUIPE_COL_NOME
+  );
+  var colLider = resolverColunaEquipePorCabecalho_(
+    equipeSheet,
+    ['LIDER', 'LÍDER'],
+    CONFIG.EQUIPE_COL_LIDER
+  );
+  var lastCol = Math.max(colNome, colLider);
+  var totalRows = lastRow - dataStartRow + 1;
+  var values = equipeSheet.getRange(dataStartRow, 1, totalRows, lastCol).getValues();
 
   var executorNorm = normalizarTextoComparacao_(nomeExecutor);
 
-  // Prioriza correspondência exata. A busca parcial é mantida apenas como
-  // compatibilidade e só é aceita quando não há ambiguidade.
-  var correspondenciasParciais = [];
+  var correspondenciasExatas = [];
 
   for (var i = 0; i < values.length; i++) {
-    var nomeEquipe = String(values[i][CONFIG.EQUIPE_COL_NOME
- - 1] || '').trim();
-    var liderEquipe = String(values[i][CONFIG.EQUIPE_COL_LIDER - 1] || '').trim();
+    var nomeEquipe = String(values[i][colNome - 1] || '').trim();
+    var liderEquipe = String(values[i][colLider - 1] || '').trim();
 
     if (!nomeEquipe || !liderEquipe) continue;
 
     var nomeEquipeNorm = normalizarTextoComparacao_(nomeEquipe);
 
-    if (nomeEquipeNorm === executorNorm) return liderEquipe;
-
-    if (
-      nomeEquipeNorm.indexOf(executorNorm) !== -1 ||
-      executorNorm.indexOf(nomeEquipeNorm) !== -1
-    ) correspondenciasParciais.push(liderEquipe);
+    if (nomeEquipeNorm === executorNorm) {
+      correspondenciasExatas.push({
+        row: i + dataStartRow,
+        nome: nomeEquipe,
+        lider: liderEquipe
+      });
+    }
   }
 
-  var lideresParciais = correspondenciasParciais.filter(function(lider, index, arr) {
-    return arr.indexOf(lider) === index;
+  if (!correspondenciasExatas.length) {
+    Logger.log(
+      'Nenhuma correspondência exata na aba Equipe para "' + nomeExecutor + '".'
+    );
+    return '';
+  }
+
+  var lideresExatos = correspondenciasExatas
+    .map(function(item) { return item.lider; })
+    .filter(function(lider, index, arr) {
+      var liderNorm = normalizarTextoComparacao_(lider);
+      return arr.findIndex(function(outro) {
+        return normalizarTextoComparacao_(outro) === liderNorm;
+      }) === index;
   });
 
-  if (lideresParciais.length === 1) return lideresParciais[0];
+  if (lideresExatos.length === 1) return lideresExatos[0];
 
-  if (lideresParciais.length > 1) {
-    Logger.log(
-      'Busca de líder ambígua na aba Equipe para "' + nomeExecutor + '": ' +
-      JSON.stringify(lideresParciais)
-    );
-  }
+  Logger.log(
+    'Cadastro duplicado e ambíguo na aba Equipe para "' + nomeExecutor + '": ' +
+    JSON.stringify(correspondenciasExatas)
+  );
 
   return '';
 }
 // preenche o lider de acordo com a opçaõ prensente na planilha 
-function garantirValidacaoPadraoLider_(sheet, row) {
+function garantirValidacaoPadraoLider_(sheet, row, atualizarPelaEquipe) {
   if (!CONFIG.COL_LIDER) return;
 
   var cell = sheet.getRange(row, CONFIG.COL_LIDER);
   var rule = cell.getDataValidation();
+
+  if (atualizarPelaEquipe) {
+    var ruleEquipe = criarValidacaoLiderAPartirDaEquipe_(sheet.getParent());
+    if (ruleEquipe) {
+      cell.setDataValidation(ruleEquipe);
+      Logger.log('Validação do líder atualizada pela aba Equipe na linha ' + row);
+      return;
+    }
+  }
 
   if (rule) return;
 
   var rulePadrao = buscarValidacaoPadraoNaColuna_(sheet, CONFIG.COL_LIDER, row);
 
   if (!rulePadrao) {
-    rulePadrao = criarValidacaoLiderAPartirDaEquipe_();
+    rulePadrao = criarValidacaoLiderAPartirDaEquipe_(sheet.getParent());
   }
 
   if (rulePadrao) {
@@ -282,17 +366,23 @@ function garantirValidacaoPadraoLider_(sheet, row) {
   }
 }
 
-// Quando a coluna W ainda não possuir validação, cria a lista a partir dos
+// Quando a coluna X ainda não possuir validação, cria a lista a partir dos
 // líderes cadastrados na aba Equipe. Assim a própria validação também segue a
 // mesma fonte de verdade usada no preenchimento automático.
-function criarValidacaoLiderAPartirDaEquipe_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+function criarValidacaoLiderAPartirDaEquipe_(spreadsheet) {
+  var ss = spreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var equipeSheet = ss.getSheetByName(CONFIG.EQUIPE_SHEET_NAME);
-  if (!equipeSheet || equipeSheet.getLastRow() < 2) return null;
+  var dataStartRow = CONFIG.EQUIPE_DATA_START_ROW || 2;
+  if (!equipeSheet || equipeSheet.getLastRow() < dataStartRow) return null;
 
-  var totalRows = equipeSheet.getLastRow() - 1;
+  var totalRows = equipeSheet.getLastRow() - dataStartRow + 1;
+  var colLider = resolverColunaEquipePorCabecalho_(
+    equipeSheet,
+    ['LIDER', 'LÍDER'],
+    CONFIG.EQUIPE_COL_LIDER
+  );
   var lideres = equipeSheet
-    .getRange(2, CONFIG.EQUIPE_COL_LIDER, totalRows, 1)
+    .getRange(dataStartRow, colLider, totalRows, 1)
     .getDisplayValues()
     .flat()
     .map(function(lider) { return String(lider || '').trim(); })
@@ -369,32 +459,6 @@ function selecionarOpcaoExistenteNaValidacao_(cell, valorDesejado) {
     if (normalizarTextoComparacao_(opcoes[j]) === desejadoNorm) {
       return opcoes[j];
     }
-  }
-
-  var matches = [];
-
-  for (var k = 0; k < opcoes.length; k++) {
-    var opcaoNorm = normalizarTextoComparacao_(opcoes[k]);
-
-    if (
-      opcaoNorm.indexOf(desejadoNorm) !== -1 ||
-      desejadoNorm.indexOf(opcaoNorm) !== -1
-    ) {
-      matches.push(opcoes[k]);
-    }
-  }
-
-  if (matches.length === 1) {
-    return matches[0];
-  }
-
-  if (matches.length > 1) {
-    Logger.log(
-      'Mais de uma opção possível encontrada para "' +
-      valorDesejado +
-      '": ' +
-      JSON.stringify(matches)
-    );
   }
 
   Logger.log('Valor "' + valorDesejado + '" não encontrado nas opções válidas da célula.');
@@ -492,21 +556,6 @@ function preencherContextoOuvidoriaNaPlanilha_(sheet, row, deal) {
 
   var setorAtual = sheet.getRange(row, CONFIG.COL_SETOR).getDisplayValue();
 
-
-  // Financiamento é delegado a Kauã Amorim na coluna de responsável; o
-  // executor permanece manual e o líder é explicitamente Kauã Amorim.
-	if (isSetorFinanciamento_(setorAtual)) {
-  sheet.getRange(row, CONFIG.COL_EXEC).clearContent();
-
-  preencherLiderFinanciamentoDaLinha_(sheet, row);
-
-  Logger.log(
-    'Linha ' + row +
-    ': setor Financiamento identificado. Executor final limpo e líder definido como Kauã Amorim.'
-  );
-
-  return;
-}
 
   var executorFinal = sheet.getRange(row, CONFIG.COL_EXEC).getDisplayValue();
 
@@ -717,6 +766,3 @@ function getDealFieldOptionLabel_(fieldKey, optionId) {
   var key = String(optionId).trim();
   return fieldOptions[key] || null;
 }
-
-
-

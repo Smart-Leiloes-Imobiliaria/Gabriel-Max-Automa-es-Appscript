@@ -396,7 +396,7 @@ function corrigirTodasFormulasRecorrenciaNps() {
   }
 
   range.setFormulasR1C1(formulas);
-  Logger.log('Fórmulas de recorrência NPS (coluna N) aplicadas em ' + quantidadeLinhas + ' linhas.');
+  Logger.log('Fórmulas de recorrência NPS (coluna O) aplicadas em ' + quantidadeLinhas + ' linhas.');
 }
 function garantirFormulaRecorrenciaAssunto_(sheet, row) {
   if (!CONFIG.COL_RECORRENCIA_ASSUNTO) return;
@@ -431,18 +431,27 @@ function buscarFormulaPadraoNaColuna_(sheet, col, rowAtual) {
   return '';
 }
 
-function garantirValidacaoPadraoLider_(sheet, row) {
+function garantirValidacaoPadraoLider_(sheet, row, atualizarPelaEquipe) {
   if (!CONFIG.COL_LIDER) return;
 
   var cell = sheet.getRange(row, CONFIG.COL_LIDER);
   var rule = cell.getDataValidation();
+
+  if (atualizarPelaEquipe && typeof criarValidacaoLiderAPartirDaEquipe_ === 'function') {
+    var ruleEquipe = criarValidacaoLiderAPartirDaEquipe_(sheet.getParent());
+    if (ruleEquipe) {
+      cell.setDataValidation(ruleEquipe);
+      Logger.log('Validação do líder atualizada pela aba Equipe na linha ' + row);
+      return;
+    }
+  }
 
   if (rule) return;
 
   var rulePadrao = buscarValidacaoPadraoNaColuna_(sheet, CONFIG.COL_LIDER, row);
 
   if (!rulePadrao && typeof criarValidacaoLiderAPartirDaEquipe_ === 'function') {
-    rulePadrao = criarValidacaoLiderAPartirDaEquipe_();
+    rulePadrao = criarValidacaoLiderAPartirDaEquipe_(sheet.getParent());
   }
 
   if (rulePadrao) {
@@ -558,6 +567,7 @@ function onEditHandler(e) {
 
     var editouCampoQuePodeCriarAtividade =
       rangeIncludesColumn_(range, CONFIG.COL_DATA_ABERT) ||
+      rangeIncludesColumn_(range, CONFIG.COL_CONTATO_REALIZADO) ||
       rangeIncludesColumn_(range, CONFIG.COL_DESC) ||
       rangeIncludesColumn_(range, CONFIG.COL_ACAO) ||
       rangeIncludesColumn_(range, CONFIG.COL_EXEC) ||
@@ -639,6 +649,7 @@ SpreadsheetApp.flush();
   var lastNeededCol = Math.max(
     CONFIG.COL_IMOVEL,
     CONFIG.COL_DATA_ABERT,
+    CONFIG.COL_CONTATO_REALIZADO,
     CONFIG.COL_DESC,
     CONFIG.COL_ACAO,
     CONFIG.COL_SETOR,
@@ -656,11 +667,25 @@ SpreadsheetApp.flush();
   var existingLog = String(rowValues[logCol - 1] || '');
   if (/^OK:\s*atividades criadas/i.test(existingLog)) return;
 
-  // Reclamações de origem NPS são tratadas exclusivamente no Discord. Este
-  // bloqueio acontece antes das demais validações para não exigir executor ou
-  // líder em uma linha que jamais deve criar atividade no Pipedrive.
+  var contatoRealizadoRaw = rowValues[CONFIG.COL_CONTATO_REALIZADO - 1];
+  var contatoRealizado = String(contatoRealizadoRaw == null ? '' : contatoRealizadoRaw).trim();
+  if (!contatoRealizado) {
+    sheet.getRange(row, logCol).setValue(
+      'Não criou: campo "Contato Realizado?" pendente (coluna F)'
+    );
+    return;
+  }
+
+  // Reclamações de origem NPS são tratadas exclusivamente no Discord, exceto
+  // quando a etapa/setor for Atendimento - Pós Arrematação.
+  // Este bloqueio acontece antes das demais validações para não exigir executor
+  // ou líder em uma linha que jamais deve criar atividade no Pipedrive.
   var origemDaLinha = rowValues[CONFIG.COL_ORIGEM - 1];
-  if (isOrigemNps_(origemDaLinha)) {
+  var setorDaLinha = rowValues[CONFIG.COL_SETOR - 1];
+  if (!isSetorAtendimentoPosArrematacao_(setorDaLinha)) {
+    setorDaLinha = sheet.getRange(row, CONFIG.COL_SETOR).getDisplayValue();
+  }
+  if (isOrigemNps_(origemDaLinha) && !isSetorAtendimentoPosArrematacao_(setorDaLinha)) {
     sheet.getRange(row, logCol).setValue(
       'Não criou: origem NPS é tratada somente pelo Discord; atividade no Pipe não será criada'
     );
@@ -670,13 +695,6 @@ SpreadsheetApp.flush();
   var validation = validateRowForActivityCreation_(rowValues);
 if (!validation.ok) {
   sheet.getRange(row, logCol).setValue('Não criou: ' + validation.reason);
-  return;
-}
-
-if (isSetorFinanciamento_(validation.setor)) {
-  sheet.getRange(row, logCol).setValue(
-    'Não criou: setor Financiamento deve ser tratado manualmente, sem criação de atividade no Pipe'
-  );
   return;
 }
 
@@ -906,67 +924,76 @@ function extractDealOwnerId_(deal) {
 function validateRowForActivityCreation_(rowValues) {
   var imovelCode = (rowValues[CONFIG.COL_IMOVEL - 1] || '').toString().trim();
   var dataAbertRaw = rowValues[CONFIG.COL_DATA_ABERT - 1];
+  var contatoRealizadoRaw = rowValues[CONFIG.COL_CONTATO_REALIZADO - 1];
+  var contatoRealizado = String(contatoRealizadoRaw == null ? '' : contatoRealizadoRaw).trim();
 
-  var recorrenciaImovel = (rowValues[CONFIG.COL_RECORRENCIA - 1] || '').toString().trim(); // J
-  var descricao = (rowValues[CONFIG.COL_DESC - 1] || '').toString().trim();                // N
-  var acaoEfetiva = (rowValues[CONFIG.COL_ACAO - 1] || '').toString().trim();              // R
-  var setor = (rowValues[CONFIG.COL_SETOR - 1] || '').toString().trim();                   // Q
-  var ownerSheet = (rowValues[CONFIG.COL_OWNER - 1] || '').toString().trim();              // R
-  var executorRaw = (rowValues[CONFIG.COL_EXEC - 1] || '').toString().trim();              // S
-  var origem = (rowValues[CONFIG.COL_ORIGEM - 1] || '').toString().trim();  // V
-var lider = (rowValues[CONFIG.COL_LIDER - 1] || '').toString().trim();
+  var recorrenciaImovel = (rowValues[CONFIG.COL_RECORRENCIA - 1] || '').toString().trim(); // M
+  var descricao = (rowValues[CONFIG.COL_DESC - 1] || '').toString().trim();                // R
+  var acaoEfetiva = (rowValues[CONFIG.COL_ACAO - 1] || '').toString().trim();              // S
+  var setor = (rowValues[CONFIG.COL_SETOR - 1] || '').toString().trim();                   // U
+  var ownerSheet = (rowValues[CONFIG.COL_OWNER - 1] || '').toString().trim();              // V
+  var executorRaw = (rowValues[CONFIG.COL_EXEC - 1] || '').toString().trim();              // W
+  var origem = (rowValues[CONFIG.COL_ORIGEM - 1] || '').toString().trim();                 // Y
+var lider = (rowValues[CONFIG.COL_LIDER - 1] || '').toString().trim();                     // X
 if (!imovelCode) {
   return { ok: false, reason: 'A (código imóvel) vazio' };
 }
 
 if (!dataAbertRaw) {
-  return { ok: false, reason: 'C (data abertura) vazia' };
+  return { ok: false, reason: 'D (data abertura) vazia' };
+}
+
+if (!contatoRealizado) {
+  return { ok: false, reason: 'campo "Contato Realizado?" pendente (coluna F)' };
 }
 
 var dataAbert = coerceToDate_(dataAbertRaw);
 
 if (!dataAbert) {
-  return { ok: false, reason: 'C (data abertura) inválida (não é data)' };
+  return { ok: false, reason: 'D (data abertura) inválida (não é data)' };
 }
 
 if (!isWithinOpeningWindow_(dataAbert)) {
   return {
     ok: false,
-    reason: 'C (data abertura) fora da janela de ' + CONFIG.MAX_OPENING_AGE_DAYS + ' dia(s)'
+    reason: 'D (data abertura) fora da janela de ' + CONFIG.MAX_OPENING_AGE_DAYS + ' dia(s)'
   };
 }
 
 if (!descricao) {
-  return { ok: false, reason: 'N (descrição da reclamação) vazio' };
+  return { ok: false, reason: 'R (descrição da reclamação) vazio' };
 }
 
 if (!acaoEfetiva) {
-  return { ok: false, reason: 'O (ação efetiva a ser executada para concluir a ouvidoria) vazio' };
+  return { ok: false, reason: 'S (ação efetiva a ser executada para concluir a ouvidoria) vazio' };
 }
 
 if (!setor) {
-  return { ok: false, reason: 'Q (etapa/setor) vazio' };
+  return { ok: false, reason: 'U (etapa/setor) vazio' };
 }
 
 if (!ownerSheet) {
-  return { ok: false, reason: 'R (proprietário/co-proprietário) vazio' };
+  return { ok: false, reason: 'V (proprietário) vazio' };
 }
 
-if (!executorRaw && !isSetorFinanciamento_(setor)) {
-  return { ok: false, reason: 'S (executor) vazio' };
+// A atividade é sempre atribuída a partir do Executor (coluna W), inclusive
+// para Financiamento. Sem executor não há como resolver o usuário do PipeDrive.
+if (!executorRaw) {
+  return { ok: false, reason: 'W (executor) vazio' };
 }
 if (!lider) {
-  return { ok: false, reason: 'T (líder) vazio' };
+  return { ok: false, reason: 'X (líder) vazio' };
 }
 
 if (!origem) {
-  return { ok: false, reason: 'V (origem) vazio' };
+  return { ok: false, reason: 'Y (origem) vazio' };
 }
 
   return {
     ok: true,
     imovelCode: imovelCode,
     dataAbertura: dataAbert,
+    contatoRealizado: contatoRealizado,
     recorrenciaImovel: recorrenciaImovel,
     origem: origem,
     setor: setor,
@@ -1004,18 +1031,18 @@ function resolveAssigneeUserIdsFromExecutorColumn_(executorRaw, ownerSheet, seto
   var ownerText = String(ownerSheet || '').trim();
 
   if (!executorText) {
-    Logger.log('Executor vazio na coluna V. Não foi possível definir responsável da atividade.');
+    Logger.log('Executor vazio na coluna W. Não foi possível definir responsável da atividade.');
     return [];
   }
 
-  // Se a coluna V começar com "Externo" ou "Parceiro", a atividade vai para Pedro Rocha.
+  // Se a coluna W começar com "Externo" ou "Parceiro", a atividade vai para Pedro Rocha.
   
   if (isExecutorExternoOuParceiroOuvidoria_(executorText)) {
     var pedroId = resolvePedroRochaUserId_();
 
     if (pedroId) {
       Logger.log(
-        'Executor externo/parceiro detectado na coluna V. Atividade atribuída a Pedro Rocha. ' +
+        'Executor externo/parceiro detectado na coluna W. Atividade atribuída a Pedro Rocha. ' +
         'executorRaw="' + executorText + '", user_id=' + pedroId
       );
 
@@ -1062,7 +1089,7 @@ function resolveAssigneeUserIdsFromExecutorColumn_(executorRaw, ownerSheet, seto
 
   if (!userIds.length) {
     Logger.log(
-      'Não foi possível resolver nenhum executor da coluna V. ' +
+      'Não foi possível resolver nenhum executor da coluna W. ' +
       'executorRaw="' + executorText + '", normalized="' + normalized + '", ownerSheet="' + ownerText + '"'
     );
   }
@@ -1110,10 +1137,10 @@ function resolveAssigneeUserId_(executorRaw, ownerSheet, setor, dealOwnerId) {
   var ownerText = String(ownerSheet || '').trim();
 
   // REGRA:
-  // A atividade deve ser criada para o executor da coluna V.
+  // A atividade deve ser criada para o executor da coluna W.
   //
   // EXCEÇÃO:
-  // Se o executor da coluna V for Externo, no fluxo da ouvidoria isso representa
+  // Se o executor da coluna W for Externo, no fluxo da ouvidoria isso representa
   // parceiro externo. Nesse caso, a atividade deve ser criada para Pedro Rocha.
   if (/^(Externo|Parceiro)\b/i.test(executorText)) {
     if (typeof USUARIO_PEDRO_ROCHA_ID !== 'undefined' && Number(USUARIO_PEDRO_ROCHA_ID)) {
@@ -1140,7 +1167,7 @@ function resolveAssigneeUserId_(executorRaw, ownerSheet, setor, dealOwnerId) {
   }
 
   // Caso normal:
-  // cria a atividade para o próprio executor da coluna V.
+  // cria a atividade para o próprio executor da coluna W.
   // Exemplo: "Interno - Ana Carolina" -> resolve "Ana Carolina".
   var normalized = normalizeExecutorText_(executorText);
 
@@ -1197,6 +1224,8 @@ function normalizeExecutorText_(s) {
   var t = (s || '').toString().replace(/\s+/g, ' ').trim();
   t = t.replace(/\(Você\)/gi, '').trim();
   t = t.replace(/^(Interno|Externo)\s*-\s*/i, '').trim();
+  t = t.replace(/^CCA\s*[-–—:]?\s*/i, '').trim();
+    t = t.replace(/^\s*Interno\s*[-–—:]?\s*CCA\s*[-–—:]?\s*/i, '').trim();
   t = t.replace(/^(Prop|Propriet[aá]rio|Propriet[aá]ria|Proprietario|Proprietaria|Proponente|Arrematante)\s*-\s*/i, '').trim();
   t = t.replace(/^(Prop|Propriet[aá]rio|Propriet[aá]ria|Proprietario|Proprietaria|Proponente|Arrematante)\s*:\s*/i, '').trim();
   return t;
@@ -1301,7 +1330,12 @@ function isSetorAtendimentoPosArrematacao_(setor) {
   return (
     s === 'atendimento pos arrematacao' ||
     s === 'atendimento pos' ||
-    s.indexOf('atendimento pos arrematacao') !== -1
+    s.indexOf('atendimento pos arrematacao') !== -1 ||
+    (
+      s.indexOf('atendimento') !== -1 &&
+      s.indexOf('pos') !== -1 &&
+      s.indexOf('arrematacao') !== -1
+    )
   );
 }
 function isCoPropOwnerSheet_(ownerSheet) {
@@ -1524,7 +1558,7 @@ function testarCriacaoAtividadesLinha3() {
   Logger.log('Descrição: "' + descricao + '"');
   Logger.log('Setor: "' + setor + '"');
   Logger.log('Proprietário da atividade: "' + proprietario + '"');
-  Logger.log('Executor da coluna V: "' + executor + '"');
+  Logger.log('Executor da coluna W: "' + executor + '"');
 
   if (!codigoImovel) {
     var msgCodigo = "Não testou: código do imóvel vazio na linha 3.";
@@ -1544,13 +1578,13 @@ function testarCriacaoAtividadesLinha3() {
 
   if (/^Externo\s*(?:[-–—:]|\b)/i.test(validation.executorRaw)) {
       Logger.log(
-      'Executor externo detectado na coluna V: "' +
+      'Executor externo detectado na coluna W: "' +
       validation.executorRaw +
       '". A atividade deve ser criada para Pedro Rocha.'
     );
   } else {
     Logger.log(
-      'Executor interno/normal detectado na coluna V: "' +
+      'Executor interno/normal detectado na coluna W: "' +
       validation.executorRaw +
       '". A atividade será criada para esse executor.'
     );
