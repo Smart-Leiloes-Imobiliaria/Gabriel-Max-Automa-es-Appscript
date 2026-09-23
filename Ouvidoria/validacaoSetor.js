@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║   VALIDAÇÃO DO EXECUTOR – COLUNA T (20)  ·  v2              ║
+// ║   VALIDAÇÃO DO EXECUTOR – SETOR NA COLUNA U (21)  ·  v2     ║
 // ║   Busca negócio no Pipedrive pelo código do imóvel (col A)   ║
 // ╚══════════════════════════════════════════════════════════════╝
 
@@ -13,18 +13,23 @@ const USUARIO_PEDRO_ROCHA_ID = 25418043;
 const TIPO_INTERNO = "Interno";
 const TIPO_EXTERNO = "Externo";
 const NOME_ABA_EQUIPE = "Equipe";
+const LINHA_CABECALHO_EQUIPE = 2;
+const LINHA_INICIO_DADOS_EQUIPE = 3;
 const COL_EQUIPE_FUNCIONARIO = 2; // B – nome do funcionário
-const COL_EQUIPE_LIDER = 5;      // E – líder
+const COL_EQUIPE_LIDER = 8;      // H – líder (G é TUTOR)
 
 function _resolveHeaderCol_(sheet, header, fallbackCol) {
   try {
     if (!sheet) return fallbackCol;
     var lastCol = sheet.getLastColumn();
     if (!lastCol) return fallbackCol;
-    var headers = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0] || [];
-    var wanted = _normalizarTexto(header);
+    var headerRow = LINHA_CABECALHO_EQUIPE || 1;
+    if (sheet.getLastRow() < headerRow) return fallbackCol;
+    var headers = sheet.getRange(headerRow, 1, 1, lastCol).getDisplayValues()[0] || [];
+    var aliases = Array.isArray(header) ? header : [header];
+    var wanted = aliases.map(function(item) { return _normalizarTexto(item); });
     for (var c = 0; c < headers.length; c++) {
-      if (_normalizarTexto(headers[c]) === wanted) return c + 1;
+      if (wanted.indexOf(_normalizarTexto(headers[c])) !== -1) return c + 1;
     }
   } catch (_) {}
   return fallbackCol;
@@ -32,10 +37,10 @@ function _resolveHeaderCol_(sheet, header, fallbackCol) {
 
 function _getOuvidoriaCols_(sheet) {
   return {
-    IMOVEL: _resolveHeaderCol_(sheet, 'Código do Imóvel', CONFIG.COL_IMOVEL),
+    IMOVEL: _resolveHeaderCol_(sheet, ['Imóvel', 'Código do Imóvel'], CONFIG.COL_IMOVEL),
     SETOR: _resolveHeaderCol_(sheet, 'Setor', CONFIG.COL_SETOR),
     PROPONENTE: _resolveHeaderCol_(sheet, 'Proponente Principal', CONFIG.COL_PROPONENTE),
-    OWNER: _resolveHeaderCol_(sheet, 'Proprietário/Co-proprietário', CONFIG.COL_OWNER),
+    OWNER: _resolveHeaderCol_(sheet, ['Proprietário', 'Proprietário/Co-proprietário'], CONFIG.COL_OWNER),
     EXECUTOR: _resolveHeaderCol_(sheet, 'Executor', CONFIG.COL_EXEC),
     LIDER: _resolveHeaderCol_(sheet, 'Líder', CONFIG.COL_LIDER),
     ORIGEM: _resolveHeaderCol_(sheet, 'Origem', CONFIG.COL_ORIGEM)
@@ -212,7 +217,7 @@ const CAMPO_EXECUTOR_CONTRATO = {
   nome: "Executor: Contrato",
   key : "1dbb1d3c497001898a92edd0a1799d19485bf26e",
   options: {
-    412: "Terceiro",
+    412: "Parceiro",
     1494: "Terceiro Substituto",
     359: "Smart",
     683: "Gerente externo (FGTS)",
@@ -342,7 +347,7 @@ function aoEditarOuvidoria(e) {
     const colunaEditada = range.getColumn();
     const linhaEditada = range.getRow();
 
-    // Quando editar o setor na coluna T
+    // Quando editar o setor na coluna U
     if (colunaEditada === cols.SETOR) {
       try {
         _processarLinha(sheet, linhaEditada);
@@ -353,7 +358,7 @@ function aoEditarOuvidoria(e) {
       return;
     }
 
-    // Quando editar o executor manualmente na coluna V
+    // Quando editar o executor manualmente na coluna W
     if (colunaEditada === cols.EXECUTOR) {
       try {
         preencherLiderResponsavelLinha(linhaEditada);
@@ -432,9 +437,9 @@ function testarPreenchimentoOuvidoriaLinha(row) {
   Logger.log('A (imóvel): "' + sheet.getRange(linha, COL_CODIGO_IMOVEL).getDisplayValue() + '"');
   Logger.log('B (proponente): "' + sheet.getRange(linha, COL_PROPONENTE).getDisplayValue() + '"');
   Logger.log('C (telefone): "' + sheet.getRange(linha, COL_TELEFONE_ARREMATANTE).getDisplayValue() + '"');
-  Logger.log('Q (setor): "' + sheet.getRange(linha, COL_SETOR).getDisplayValue() + '"');
-  Logger.log('S (executor): "' + sheet.getRange(linha, COL_EXECUTOR).getDisplayValue() + '"');
-  Logger.log('T (líder): "' + sheet.getRange(linha, COL_LIDER).getDisplayValue() + '"');
+  Logger.log('U (setor): "' + sheet.getRange(linha, COL_SETOR).getDisplayValue() + '"');
+  Logger.log('W (executor): "' + sheet.getRange(linha, COL_EXECUTOR).getDisplayValue() + '"');
+  Logger.log('X (líder): "' + sheet.getRange(linha, COL_LIDER_RESPONSAVEL).getDisplayValue() + '"');
 
   return { ok: true, row: linha };
 }
@@ -471,17 +476,8 @@ function _processarLinha(sheet, row) {
 
   _gravarResultado(sheet, row, resultado);
 
-  // Garante que o executor gravado na coluna V esteja disponível
+  // Garante que o executor gravado na coluna W esteja disponível
   SpreadsheetApp.flush();
-
-  const setorNorm = _normalizarTexto(contexto.setor);
-
-if (setorNorm === "financiamento") {
-  Logger.log(
-    `Linha ${row}: setor Financiamento tratado sem executor. Líder fixo já processado.`
-  );
-  return;
-}
 
 const executorGravado = _lerCelula(sheet, row, cols.EXECUTOR).trim();
 
@@ -674,10 +670,9 @@ function _definirExecutorEAtividade(deal, setor) {
   const sn = _normalizarTexto(setor);
   const proprietario = _resolverProprietario(deal);
 
-  // Financiamento: mantém o proprietário do imóvel na coluna U, deixa o
-  // executor manual e define Kauã Amorim como líder em _gravarResultado.
+  // Financiamento: o executor é preenchido manualmente na planilha.
   if (isSetorFinanciamento_(setor)) {
-    Logger.log(`Setor "${sn}" → proprietário do imóvel em U, executor manual e líder Kauã Amorim.`);
+    Logger.log(`Setor "${sn}" → proprietário preenchido; aguardando executor manual na planilha.`);
     return _retornoProprietario(proprietario);
   }
 
@@ -703,10 +698,14 @@ function _definirExecutorEAtividade(deal, setor) {
   }
 
   // ── 2. Setores que dependem do campo "Executor: Contrato" ─────────────
+  const execContratoRaw = deal[CAMPO_EXECUTOR_CONTRATO.key];
   const execContrato = _resolverOpcao(deal, CAMPO_EXECUTOR_CONTRATO);
   const execContratoNorm = _normalizarTexto(execContrato);
 
-  Logger.log(`Setor: "${sn}" | Executor Contrato raw: "${execContrato}" | norm: "${execContratoNorm}"`);
+  Logger.log(
+    `Setor: "${sn}" | Executor Contrato API raw: ${JSON.stringify(execContratoRaw)} ` +
+    `| label: "${execContrato}" | norm: "${execContratoNorm}"`
+  );
 
   // daqui para baixo mantenha as demais regras: CCV, escritura, registro, titularidade, ITBI etc.
 function _resolverCampoAtribuidoNovosSetores(setorNorm) {
@@ -1429,7 +1428,7 @@ function _gravarResultado(sheet, row, resultado) {
   const cellR = sheet.getRange(row, COL_PROPRIETARIO_ATIVIDADE);
   const cellS = sheet.getRange(row, COL_EXECUTOR);
 
-  // R → proprietário/responsável da atividade
+  // V → proprietário/responsável da atividade
   const valorR = _garantirOpcaoNaValidacao(
     cellR,
     resultado.responsavelAtividade
@@ -1438,25 +1437,20 @@ function _gravarResultado(sheet, row, resultado) {
   cellR.setValue(valorR);
   const setor = _lerCelula(sheet, row, COL_SETOR);
 
-  // REGRA ESPECIAL:
-  // Financiamento:
-  // - preenche proprietário
-  // - não preenche executor
-  // - proprietário do imóvel em U
-  // - líder definido como Kauã Amorim
+  // Financiamento não recebe executor automático: limpa qualquer valor antigo
+  // ao trocar o setor e aguarda o preenchimento manual da coluna W.
   if (isSetorFinanciamento_(setor)) {
     cellS.clearContent();
-
-    preencherLiderFinanciamentoDaLinha_(sheet, row);
+    sheet.getRange(row, COL_LIDER_RESPONSAVEL).clearContent();
 
     Logger.log(
-      `Linha ${row}: setor "${setor}". Proprietário preenchido, executor manual e líder Kauã Amorim.`
+      `Linha ${row}: setor "${setor}". Executor e líder limpos; aguardando preenchimento manual do executor.`
     );
 
     return;
   }
 
-// S → executor escolhido a partir da lista de validação existente
+// W → executor escolhido a partir da lista de validação existente
 const valorSAjustado = resolverExecutorNaListaValidacao_(cellS, resultado);
 
 if (!valorSAjustado) {
@@ -1557,7 +1551,8 @@ function preencherLiderResponsavelLinha(row) {
 
   const executorRaw = _lerCelula(sheetOuvidoria, row, COL_EXECUTOR).trim();
   if (!executorRaw) {
-    Logger.log(`Linha ${row}: executor vazio na coluna V.`);
+    sheetOuvidoria.getRange(row, COL_LIDER_RESPONSAVEL).clearContent();
+    Logger.log(`Linha ${row}: executor vazio na coluna W.`);
     return;
   }
 
@@ -1625,16 +1620,26 @@ function _buscarLiderPorFuncionario(sheetEquipe, nomeFuncionario) {
 
   const lastRow = sheetEquipe.getLastRow();
 
-  if (lastRow < 2) return "";
+  if (lastRow < LINHA_INICIO_DADOS_EQUIPE) return "";
 
-  const totalRows = lastRow - 1;
+  const totalRows = lastRow - LINHA_INICIO_DADOS_EQUIPE + 1;
+  const colFuncionario = _resolveHeaderCol_(
+    sheetEquipe,
+    "Nome",
+    COL_EQUIPE_FUNCIONARIO
+  );
+  const colLider = _resolveHeaderCol_(
+    sheetEquipe,
+    ["Lider", "Líder"],
+    COL_EQUIPE_LIDER
+  );
 
   const funcionarios = sheetEquipe
-    .getRange(2, COL_EQUIPE_FUNCIONARIO, totalRows, 1)
+    .getRange(LINHA_INICIO_DADOS_EQUIPE, colFuncionario, totalRows, 1)
     .getValues();
 
   const lideres = sheetEquipe
-    .getRange(2, COL_EQUIPE_LIDER, totalRows, 1)
+    .getRange(LINHA_INICIO_DADOS_EQUIPE, colLider, totalRows, 1)
     .getValues();
 
   const nomeNorm = _normalizarTexto(nomeFuncionario);
@@ -1744,7 +1749,7 @@ _gravarProponente(sheet, row, proponente);
 
   // 5. GRAVAÇÃO
   _gravarResultado(sheet, row, resultado);
-  Logger.log("✅ Resultado gravado na planilha (coluna V)");
+  Logger.log("✅ Resultado gravado na planilha (coluna W)");
 
   Logger.log("═══════════════════════════════════════");
   Logger.log("🏁 FIM DO TESTE");
